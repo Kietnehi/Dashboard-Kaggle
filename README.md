@@ -201,13 +201,29 @@ Chưa gắn license mặc định. Chỉ thêm license sau khi xác định rõ 
     </td>
   </tr>
 </table>
-
 <p align="center">
-  <a href="https://github.com/Kietnehi/Dashboard-Kaggle">
-    <img src="https://img.shields.io/github/stars/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=F59E0B&label=Stars" alt="Dashboard Kaggle stars" />
-    <img src="https://img.shields.io/github/forks/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=F97316&label=Forks" alt="Dashboard Kaggle forks" />
-    <img src="https://img.shields.io/github/issues/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=EF4444&label=Issues" alt="Dashboard Kaggle issues" />
-  </a>
+  <img
+    src="https://quotes-github-readme.vercel.app/api?type=horizontal&amp;theme=dark"
+    alt="Daily Quote"
+  />
+</p>
+<p align="center">
+  <img
+    src="https://img.shields.io/badge/Project-Kaggle_Monitor-20BEFF?style=flat-square&amp;logo=kaggle&amp;logoColor=white"
+    alt="Kaggle Monitor"
+  />
+  <img
+    src="https://img.shields.io/badge/Feature-GPU%2FTPU_Quota-FF4B4B?style=flat-square"
+    alt="GPU and TPU Quota"
+  />
+  <img
+    src="https://img.shields.io/badge/Sync-Real--time-2563EB?style=flat-square"
+    alt="Real-time Synchronization"
+  />
+  <img
+    src="https://img.shields.io/badge/Status-Active-16A34A?style=flat-square"
+    alt="Project Status"
+  />
 </p>
 
 <p align="center">
