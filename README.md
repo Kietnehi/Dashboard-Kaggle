@@ -181,22 +181,32 @@ Chưa gắn license mặc định. Chỉ thêm license sau khi xác định rõ 
 
 <table align="center">
   <tr>
-    <td align="center" width="240">
+    <td align="center" valign="middle" width="220">
       <a href="https://github.com/Kietnehi">
-        <img src="https://github.com/Kietnehi.png" width="128" alt="Trương Phú Kiệt" />
+        <img src="https://github.com/Kietnehi.png" width="112" alt="Trương Phú Kiệt" />
       </a>
-      <br /><br />
+      <br />
+      <br />
       <strong><a href="https://github.com/Kietnehi">Trương Phú Kiệt</a></strong>
       <br />
       <sub>AI Engineer · Project Owner</sub>
-      <br /><br />
+      <br />
+      <br />
       <a href="https://github.com/Kietnehi">
-        <img src="https://img.shields.io/badge/View_Profile-GitHub-181717?style=for-the-badge&logo=github" alt="View Kietnehi GitHub profile" />
+        <img src="https://img.shields.io/badge/GitHub-Profile-181717?style=flat-square&logo=github&logoColor=white" alt="View Kietnehi GitHub profile" />
       </a>
     </td>
-    <td align="center" width="460">
+    <td align="center" valign="middle" width="460">
       <a href="https://github.com/Kietnehi">
-        <img src="https://github-readme-stats.vercel.app/api?username=Kietnehi&show_icons=true&hide_title=true&hide=issues,contribs,prs&rank_icon=github&hide_border=true&theme=transparent" width="420" alt="Kietnehi's GitHub stats" />
+        <img src="https://github-readme-stats.vercel.app/api?username=Kietnehi&show_icons=true&hide_title=true&hide=issues,contribs,prs&rank_icon=github&hide_border=true&theme=transparent&bg_color=00000000&title_color=0F172A&text_color=475569&icon_color=2563EB" width="400" alt="Kietnehi's GitHub stats" />
+      </a>
+      <br />
+      <br />
+      <a href="https://github.com/Kietnehi">
+        <img src="https://img.shields.io/github/followers/Kietnehi?style=flat-square&label=Followers" alt="Kietnehi followers" />
+      </a>
+      <a href="https://github.com/Kietnehi/Dashboard-Kaggle">
+        <img src="https://img.shields.io/github/stars/Kietnehi/Dashboard-Kaggle?style=flat-square&label=Project%20Stars&color=F59E0B" alt="Dashboard Kaggle stars" />
       </a>
     </td>
   </tr>
