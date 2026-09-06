@@ -163,51 +163,59 @@ Nếu đã từng commit nhầm API key, chỉ xóa file ở commit mới là ch
 
 Chưa gắn license mặc định. Chỉ thêm license sau khi xác định rõ quyền sử dụng source code và các thành phần phụ thuộc.
 
-## Author & GitHub Account
+---
 
-<p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&height=120&section=header" alt="Dashboard Kaggle header" />
-</p>
-
-| |
-| :---: |
-| <a href="https://github.com/Kietnehi"><img src="https://github-readme-stats.vercel.app/api?username=Kietnehi&show_icons=true&hide_title=true&hide=issues,contribs,prs&rank_icon=github&hide_border=true" alt="Kietnehi's GitHub stats" /></a> |
-| <img src="https://github.com/Kietnehi.png" width="96" alt="Trương Phú Kiệt" /> |
-| <b><a href="https://github.com/Kietnehi">Trương Phú Kiệt</a></b> |
-| Project Owner · AI Engineer |
-| <p align="center"><img src="https://img.shields.io/github/followers/Kietnehi?style=for-the-badge" alt="Kietnehi followers" /> <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github-star-counter.workers.dev%2Fuser%2FKietnehi&query=%24.stars&style=for-the-badge&color=yellow&label=Stars&logo=github" alt="Kietnehi stars" /> <a href="https://github.com/Kietnehi"><img src="https://img.shields.io/badge/Profile-GitHub-181717?style=for-the-badge&logo=github" alt="Kietnehi GitHub profile" /></a></p> |
+## 👤 Author & Project
 
 <p align="center">
   <a href="https://github.com/Kietnehi/Dashboard-Kaggle">
-    <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&pause=1000&color=236AD3&center=true&vCenter=true&width=700&lines=Kaggle+Multi-Account+Monitor;GPU+%2F+TPU+Quota+Tracking;Real-time+Kaggle+Synchronization" alt="Kaggle Multi-Account Monitor Dashboard" />
+    <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0F172A,100:2563EB&height=140&section=header&text=Kaggle%20Monitor%20Dashboard&fontSize=30&fontColor=FFFFFF&fontAlignY=42" alt="Kaggle Monitor Dashboard" />
   </a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Project-Kaggle_Monitor-0056D2?style=flat-square" alt="Kaggle Monitor" />
-  <img src="https://img.shields.io/badge/Feature-GPU%2FTPU_Quota-FF4B4B?style=flat-square" alt="GPU and TPU quota" />
-  <img src="https://img.shields.io/badge/Status-Local_Dashboard-16A34A?style=flat-square" alt="Local dashboard" />
+  <strong>Monitor nhiều tài khoản Kaggle, notebook đang chạy và quota GPU/TPU trong một dashboard local.</strong>
+  <br />
+  <sub>FastAPI · Kaggle SDK · Real-time quota monitoring</sub>
 </p>
 
-### Tech Stack
-
-<p align="center">
-  <img src="https://skillicons.dev/icons?i=python,fastapi,js,html,git" alt="Python, FastAPI, JavaScript, HTML, and Git" />
-</p>
-
-### Kaggle Multi-Account Monitor Dashboard
+<table align="center">
+  <tr>
+    <td align="center" width="240">
+      <a href="https://github.com/Kietnehi">
+        <img src="https://github.com/Kietnehi.png" width="128" alt="Trương Phú Kiệt" />
+      </a>
+      <br /><br />
+      <strong><a href="https://github.com/Kietnehi">Trương Phú Kiệt</a></strong>
+      <br />
+      <sub>AI Engineer · Project Owner</sub>
+      <br /><br />
+      <a href="https://github.com/Kietnehi">
+        <img src="https://img.shields.io/badge/View_Profile-GitHub-181717?style=for-the-badge&logo=github" alt="View Kietnehi GitHub profile" />
+      </a>
+    </td>
+    <td align="center" width="460">
+      <a href="https://github.com/Kietnehi">
+        <img src="https://github-readme-stats.vercel.app/api?username=Kietnehi&show_icons=true&hide_title=true&hide=issues,contribs,prs&rank_icon=github&hide_border=true&theme=transparent" width="420" alt="Kietnehi's GitHub stats" />
+      </a>
+    </td>
+  </tr>
+</table>
 
 <p align="center">
   <a href="https://github.com/Kietnehi/Dashboard-Kaggle">
-    <img src="https://img.shields.io/github/stars/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=yellow" alt="Stars" />
-    <img src="https://img.shields.io/github/forks/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=orange" alt="Forks" />
-    <img src="https://img.shields.io/github/issues/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=red" alt="Issues" />
+    <img src="https://img.shields.io/github/stars/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=F59E0B&label=Stars" alt="Dashboard Kaggle stars" />
+    <img src="https://img.shields.io/github/forks/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=F97316&label=Forks" alt="Dashboard Kaggle forks" />
+    <img src="https://img.shields.io/github/issues/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=EF4444&label=Issues" alt="Dashboard Kaggle issues" />
   </a>
 </p>
 
-<!-- Dynamic quote -->
 <p align="center">
-  <img src="https://quotes-github-readme.vercel.app/api?type=horizontal&theme=dark" alt="Daily Quote" />
+  <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Kaggle-20BEFF?style=flat-square&logo=kaggle&logoColor=white" alt="Kaggle" />
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=111827" alt="JavaScript" />
+  <img src="https://img.shields.io/badge/Git-F05032?style=flat-square&logo=git&logoColor=white" alt="Git" />
 </p>
 
 <p align="center">
