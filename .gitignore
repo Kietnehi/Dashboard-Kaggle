@@ -1,0 +1,27 @@
+# Kaggle credentials and local secrets
+/Credentials/
+/credentials/
+**/Credentials/
+**/credentials/
+.env
+.env.*
+!.env.example
+.kaggle/
+.kaggle_runtime/
+
+# Runtime-generated dashboard state
+/data_cache.json
+/quota_data.json
+/scratch/
+/__pycache__/
+*.py[cod]
+*.stackdump
+
+# Local development files
+.venv/
+venv/
+env/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

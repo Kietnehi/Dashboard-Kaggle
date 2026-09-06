@@ -1,0 +1,2664 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaggle Monitor Hub | Quản lý & Giám sát Tài khoản Kaggle</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#EFF6FF',
+              100: '#DBEAFE',
+              500: '#3B82F6',
+              600: '#2563EB',
+              700: '#1D4ED8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Highlight.js for Code Syntax Highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+  <!-- Marked.js for Jupyter Markdown Cells -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #F8FAFC; /* Slate-50: Crisp light background, strictly NO gradients */
+      color: #0F172A; /* Slate-900 */
+    }
+    /* Clean custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F1F5F9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94A3B8;
+    }
+    .animate-spin-custom {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    /* Log console styling */
+    .log-terminal {
+      font-family: 'JetBrains Mono', monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      background-color: #0F172A;
+      color: #E2E8F0;
+    }
+
+    /* Notebook Code Viewer Enhancements (Light theme, zero gradients) */
+    .notebook-cell {
+      transition: all 0.15s ease-in-out;
+    }
+    .notebook-cell:hover {
+      border-color: #CBD5E1;
+    }
+    .code-gutter {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* Crisp syntax highlight colors */
+    .hljs {
+      background: transparent !important;
+      color: #24292F;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .hljs-keyword, .hljs-selector-tag, .hljs-subst {
+      color: #0550AE !important; /* Bold crisp sapphire blue */
+      font-weight: 600;
+    }
+    .hljs-string {
+      color: #0A6C32 !important; /* Crisp forest green for Python strings */
+    }
+    .hljs-comment, .hljs-quote, .hljs-meta {
+      color: #6E7781 !important; /* Slate gray comment */
+      font-style: italic;
+    }
+    .hljs-number {
+      color: #953800 !important; /* Terracotta orange for numbers */
+      font-weight: 600;
+    }
+    .hljs-built_in, .hljs-type {
+      color: #8250DF !important; /* Rich violet for builtins (len, range, print, dict) */
+      font-weight: 600;
+    }
+    .hljs-function .hljs-title, .hljs-title.function_ {
+      color: #8250DF !important; /* Function names in violet */
+      font-weight: 600;
+    }
+    .hljs-class .hljs-title {
+      color: #0550AE !important;
+      font-weight: 700;
+    }
+    .hljs-params {
+      color: #24292F;
+    }
+    /* Markdown cell typography in notebook */
+    .cell-markdown-body h1 { font-size: 1.15rem; font-weight: 700; color: #0F172A; margin-bottom: 0.5rem; border-bottom: 1px solid #E2E8F0; padding-bottom: 0.25rem; }
+    .cell-markdown-body h2 { font-size: 1.05rem; font-weight: 700; color: #1E293B; margin-top: 0.75rem; margin-bottom: 0.35rem; }
+    .cell-markdown-body h3 { font-size: 0.95rem; font-weight: 600; color: #334155; margin-top: 0.5rem; margin-bottom: 0.25rem; }
+    .cell-markdown-body p { margin-bottom: 0.4rem; color: #334155; line-height: 1.6; }
+    .cell-markdown-body ul { list-style-type: disc; margin-left: 1.25rem; margin-bottom: 0.4rem; }
+    .cell-markdown-body ol { list-style-type: decimal; margin-left: 1.25rem; margin-bottom: 0.4rem; }
+    .cell-markdown-body code { background-color: #F1F5F9; color: #0F172A; padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-size: 0.85em; font-family: 'JetBrains Mono', monospace; }
+    .cell-markdown-body blockquote { border-left: 3px solid #3B82F6; padding-left: 0.75rem; color: #475569; font-style: italic; margin: 0.5rem 0; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-900">
+
+  <!-- TOP APP HEADER -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo & Branding -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+            <i data-lucide="activity" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-lg font-bold text-slate-900 tracking-tight">Kaggle Monitor Hub</h1>
+              <span class="px-2 py-0.5 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">V1.2</span>
+            </div>
+            <p class="text-xs text-slate-500">Giám sát Real-time • Quota GPU/TPU • Input & Output Log</p>
+          </div>
+        </div>
+
+        <!-- Center Search Bar -->
+        <div class="hidden md:flex items-center flex-1 max-w-md mx-8">
+          <div class="relative w-full">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <i data-lucide="search" class="w-4 h-4"></i>
+            </div>
+            <input 
+              type="text" 
+              id="globalSearch" 
+              placeholder="Tìm nhanh notebook, dataset, account..." 
+              class="w-full pl-9 pr-4 py-1.5 text-sm bg-slate-100 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-blue-500 transition-colors"
+              oninput="handleGlobalSearch(this.value)"
+            />
+          </div>
+        </div>
+
+        <!-- Right Action Controls -->
+        <div class="flex items-center gap-2.5">
+          <!-- Auto-refresh interval dropdown -->
+          <div class="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5">
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-500"></i>
+            <span class="hidden sm:inline">Tự động:</span>
+            <select id="autoRefreshSelect" class="bg-transparent font-medium text-slate-700 focus:outline-none cursor-pointer" onchange="changeAutoRefresh(this.value)">
+              <option value="0">Tắt</option>
+              <option value="15">15 giây</option>
+              <option value="30">30 giây</option>
+              <option value="60" selected>1 phút</option>
+              <option value="300">5 phút</option>
+            </select>
+          </div>
+
+          <!-- Refresh Button -->
+          <button 
+            id="refreshBtn" 
+            onclick="triggerManualRefresh()" 
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-lg shadow-sm transition-colors cursor-pointer"
+            title="Đồng bộ dữ liệu từ Kaggle"
+          >
+            <i data-lucide="refresh-cw" id="refreshIcon" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Làm mới</span>
+          </button>
+
+          <!-- Export JSON Button -->
+          <a 
+            href="/api/export/json" 
+            download="kaggle_accounts_data.json"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm transition-colors"
+            title="Xuất toàn bộ dữ liệu ra JSON"
+          >
+            <i data-lucide="download" class="w-4 h-4 text-slate-500"></i>
+            <span class="hidden sm:inline">Export</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- NAVIGATION TABS -->
+      <div class="flex items-center space-x-1 border-t border-slate-100 -mb-px overflow-x-auto py-2">
+        <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-blue-600 bg-blue-50 flex items-center gap-2">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+          <span>Tổng quan</span>
+        </button>
+        <button onclick="switchTab('running')" id="tab-running" class="tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <i data-lucide="play-circle" class="w-4 h-4 text-amber-500"></i>
+          <span>Đang chạy</span>
+          <span id="tabBadgeRunning" class="text-xs font-bold px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded-full">0</span>
+        </button>
+        <button onclick="switchTab('quotas')" id="tab-quotas" class="tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <i data-lucide="gauge" class="w-4 h-4 text-blue-600"></i>
+          <span>Quota GPU / TPU</span>
+        </button>
+        <button onclick="switchTab('accounts')" id="tab-accounts" class="tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <i data-lucide="users" class="w-4 h-4"></i>
+          <span>Tài khoản</span>
+          <span id="tabBadgeAccounts" class="text-xs font-semibold px-1.5 py-0.2 bg-slate-200 text-slate-700 rounded-full">0</span>
+        </button>
+        <button onclick="switchTab('kernels')" id="tab-kernels" class="tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <i data-lucide="file-code" class="w-4 h-4"></i>
+          <span>Tất cả Notebooks</span>
+          <span id="tabBadgeKernels" class="text-xs font-semibold px-1.5 py-0.2 bg-slate-200 text-slate-700 rounded-full">0</span>
+        </button>
+        <button onclick="switchTab('datasets')" id="tab-datasets" class="tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <i data-lucide="database" class="w-4 h-4"></i>
+          <span>Datasets</span>
+          <span id="tabBadgeDatasets" class="text-xs font-semibold px-1.5 py-0.2 bg-slate-200 text-slate-700 rounded-full">0</span>
+        </button>
+        <button onclick="switchTab('competitions')" id="tab-competitions" class="tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <i data-lucide="trophy" class="w-4 h-4"></i>
+          <span>Cuộc thi</span>
+          <span id="tabBadgeCompetitions" class="text-xs font-semibold px-1.5 py-0.2 bg-slate-200 text-slate-700 rounded-full">0</span>
+        </button>
+        <button onclick="switchTab('credentials')" id="tab-credentials" class="tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2">
+          <i data-lucide="key" class="w-4 h-4"></i>
+          <span>Quản lý Key</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- REFRESH PROGRESS BANNER -->
+  <div id="refreshBanner" class="hidden bg-blue-50 border-b border-blue-200 px-4 py-2">
+    <div class="max-w-7xl mx-auto flex items-center justify-between text-xs text-blue-800">
+      <div class="flex items-center gap-2">
+        <i data-lucide="loader-2" class="w-4 h-4 animate-spin-custom text-blue-600"></i>
+        <span id="refreshBannerText">Đang đồng bộ dữ liệu từ Kaggle API...</span>
+      </div>
+      <span class="text-slate-500 font-mono text-[11px]">Đang cập nhật nền</span>
+    </div>
+  </div>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- SUB-HEADER BAR -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2">
+      <div class="flex items-center gap-2 text-xs text-slate-500">
+        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          10 / 10 Accounts Sẵn sàng
+        </span>
+        <span>•</span>
+        <span>Đồng bộ lần cuối: <strong id="lastSyncedText" class="text-slate-700">Đang tải...</strong></span>
+      </div>
+      <div class="text-xs text-slate-500 flex items-center gap-3">
+        <div class="flex items-center gap-1">
+          <i data-lucide="refresh-cw" class="w-3 h-3 text-slate-400"></i>
+          Reset Quota tuần: <strong id="headerQuotaCountdown" class="text-blue-600 font-medium font-mono">Đang tính...</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 1: TỔNG QUAN (OVERVIEW) ==================== -->
+    <section id="view-overview" class="space-y-6">
+      <!-- 6 METRIC CARDS -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <!-- Card 1: Accounts -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors">
+          <div class="flex items-center justify-between text-slate-500 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Tài khoản</span>
+            <div class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <i data-lucide="users" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="statTotalAccounts" class="text-2xl font-bold text-slate-900">0</span>
+            <span class="text-xs text-emerald-600 font-medium" id="statValidAccounts">0 hợp lệ</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Credentials folder</p>
+        </div>
+
+        <!-- Card 2: Total Kernels -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors">
+          <div class="flex items-center justify-between text-slate-500 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Notebooks</span>
+            <div class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <i data-lucide="file-code" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="statTotalKernels" class="text-2xl font-bold text-slate-900">0</span>
+            <span class="text-xs text-slate-500 font-medium">tổng cộng</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">10 tài khoản</p>
+        </div>
+
+        <!-- Card 3: Running Kernels -->
+        <div onclick="switchTab('running')" class="bg-white border border-amber-200 rounded-xl p-4 shadow-sm hover:border-amber-400 transition-colors cursor-pointer">
+          <div class="flex items-center justify-between text-amber-700 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Đang chạy</span>
+            <div class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <i data-lucide="play-circle" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="statRunningKernels" class="text-2xl font-bold text-amber-600">0</span>
+            <span class="text-xs text-amber-700 font-medium" id="statQueuedKernels">0 chờ</span>
+          </div>
+          <p class="text-[11px] text-amber-600 mt-1">Bấm để xem trực tiếp ↗</p>
+        </div>
+
+        <!-- Card 4: Error Kernels -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors">
+          <div class="flex items-center justify-between text-slate-500 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Lỗi / Hỏng</span>
+            <div class="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+              <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="statErrorKernels" class="text-2xl font-bold text-red-600">0</span>
+            <span class="text-xs text-slate-400 font-medium">mục</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Cần check log</p>
+        </div>
+
+        <!-- Card 5: Total Datasets -->
+        <div onclick="switchTab('datasets')" class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-cyan-400 transition-colors cursor-pointer" title="Bấm để xem danh sách Datasets">
+          <div class="flex items-center justify-between text-slate-500 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Datasets</span>
+            <div class="w-7 h-7 rounded-lg bg-cyan-50 text-cyan-600 flex items-center justify-center">
+              <i data-lucide="database" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="statTotalDatasets" class="text-2xl font-bold text-slate-900">0</span>
+            <span class="text-xs text-slate-400 font-medium">bộ dữ liệu</span>
+          </div>
+          <p class="text-[11px] text-cyan-600 mt-1">Bấm để xem danh sách ↗</p>
+        </div>
+
+        <!-- Card 6: Competitions -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors">
+          <div class="flex items-center justify-between text-slate-500 mb-2">
+            <span class="text-xs font-semibold uppercase tracking-wider">Cuộc thi</span>
+            <div class="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+              <i data-lucide="trophy" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div class="flex items-baseline gap-2">
+            <span id="statTotalCompetitions" class="text-2xl font-bold text-slate-900">0</span>
+            <span class="text-xs text-slate-400 font-medium">giải</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1">Đã tham gia</p>
+        </div>
+      </div>
+
+      <!-- RUNNING ALERT BANNER (If any notebook is running) -->
+      <div id="runningAlertBanner" class="hidden p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-3 h-3 rounded-full bg-amber-500 animate-ping"></div>
+          <div>
+            <h4 class="text-sm font-bold text-amber-900">Có Notebook Đang Chạy</h4>
+            <p class="text-xs text-amber-700" id="runningAlertText">Đang có tiến trình thực thi</p>
+          </div>
+        </div>
+        <button onclick="switchTab('running')" class="px-3 py-1.5 text-xs font-semibold text-amber-800 bg-white border border-amber-300 rounded-lg hover:bg-amber-100">
+          Xem Ngay & Soi Log ↗
+        </button>
+      </div>
+
+      <!-- ACCOUNTS QUICK GRID -->
+      <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900">Danh Sách Tài Khoản Kaggle</h2>
+            <p class="text-xs text-slate-500">Bấm vào từng tài khoản để xem chi tiết</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="switchTab('quotas')" class="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <i data-lucide="gauge" class="w-3.5 h-3.5"></i> Quản lý Quota
+            </button>
+            <button onclick="switchTab('accounts')" class="text-xs font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1">
+              Xem toàn bộ <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="overviewAccountsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div class="p-8 text-center text-slate-400 col-span-full">Đang tải tài khoản...</div>
+        </div>
+      </div>
+
+      <!-- RECENT NOTEBOOKS & ATTENTION -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+            <h3 class="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <i data-lucide="clock" class="w-4 h-4 text-blue-600"></i>
+              Notebooks Cập Nhật Gần Nhất
+            </h3>
+            <button onclick="switchTab('kernels')" class="text-xs text-blue-600 hover:underline">Tất cả</button>
+          </div>
+          <div id="overviewRecentKernels" class="divide-y divide-slate-100">
+            <p class="text-xs text-slate-400 py-4 text-center">Đang tải danh sách...</p>
+          </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+            <h3 class="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <i data-lucide="alert-circle" class="w-4 h-4 text-amber-600"></i>
+              Notebooks Cần Chú Ý (Lỗi hoặc Đang chạy)
+            </h3>
+            <span class="text-xs text-slate-400" id="overviewAttentionCount">0 mục</span>
+          </div>
+          <div id="overviewAttentionList" class="divide-y divide-slate-100">
+            <p class="text-xs text-slate-400 py-4 text-center">Không có notebook nào đang lỗi.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: ĐANG CHẠY (RUNNING MONITOR) ==================== -->
+    <section id="view-running" class="hidden space-y-4">
+      <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-100">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-base font-bold text-slate-900">Giám Sát Notebooks Đang Chạy Thời Gian Thực</h2>
+              <span id="runningMonitorBadge" class="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full">0 Active</span>
+            </div>
+            <p class="text-xs text-slate-500">Theo dõi các session đang train, tiêu tốn tài nguyên GPU/TPU và xem trực tiếp log output</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="triggerRunningScanNow()" class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="rotate-cw" id="runningScanIcon" class="w-3.5 h-3.5"></i> Quét lại trạng thái
+            </button>
+          </div>
+        </div>
+
+        <div id="runningListContainer">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: QUOTA GPU / TPU ==================== -->
+    <section id="view-quotas" class="hidden space-y-5">
+      <!-- Quota Header & Countdown -->
+      <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div>
+            <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="gauge" class="w-5 h-5 text-blue-600"></i>
+              Giám Sát Tài Nguyên & Quota GPU / TPU / CPU
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">Theo dõi quota GPU/TPU và số lượng notebook đang chạy với GPU, TPU hoặc CPU theo thời gian thực trên từng tài khoản.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="refreshQuotasRealtime()" class="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs">
+              <i data-lucide="rotate-cw" id="quotaRefreshIcon" class="w-4 h-4 text-blue-600"></i> Quét lại Real-time
+            </button>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-right">
+              <span class="text-[11px] text-blue-700 font-semibold block uppercase">Chu kỳ Reset Quota tuần tới:</span>
+              <span id="quotaCountdownText" class="text-base font-bold text-blue-900 font-mono">Đang tính...</span>
+              <span id="quotaResetDateText" class="text-[10px] text-blue-600 block">Thứ Bảy 00:00 UTC (07:00 VN)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4 text-xs text-slate-600 bg-amber-50/70 border border-amber-200 rounded-lg p-3 flex items-start gap-2.5">
+          <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0"></i>
+          <div class="space-y-1">
+            <p><strong>Lưu ý về Quota Kaggle:</strong> Dashboard dùng API quota chính thức của Kaggle để đọc số giờ đã dùng/còn lại cho từng credential (GPU và TPU), rồi lưu thời điểm cập nhật cuối.</p>
+            <ul class="list-disc list-inside space-y-0.5 text-slate-600">
+              <li>Nút <strong>"Quét lại Real-time"</strong> gọi lại Kaggle cho toàn bộ account; nếu Kaggle trả lỗi hoặc rate-limit, số liệu cũ vẫn được giữ.</li>
+              <li>Dashboard tập trung <strong>giám sát trực tiếp các notebook đang chạy (GPU, TPU & CPU)</strong> để phát hiện ngay các phiên đang tiêu tốn tài nguyên.</li>
+              <li>Quota tuần có thể thay đổi theo chính sách/tier Kaggle; liên kết trên mỗi thẻ vẫn mở trang Kaggle để đối chiếu.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quota Cards Grid for 10 Accounts -->
+      <div id="quotaGridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Populated via JS -->
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: TÀI KHOẢN (ACCOUNTS) ==================== -->
+    <section id="view-accounts" class="hidden space-y-4">
+      <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900">Quản Lý Tài Khoản</h2>
+            <p class="text-xs text-slate-500">10 tài khoản nạp từ thư mục Credentials</p>
+          </div>
+          <input 
+            type="text" 
+            placeholder="Lọc tài khoản..." 
+            class="px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-blue-500"
+            oninput="renderAccountsTab(this.value)"
+          />
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-700">
+            <thead class="bg-slate-50 text-slate-500 uppercase font-semibold text-[11px] border-y border-slate-200">
+              <tr>
+                <th class="py-3 px-4">Tài khoản</th>
+                <th class="py-3 px-4">File Key</th>
+                <th class="py-3 px-4">Trạng thái</th>
+                <th class="py-3 px-4 text-center">Notebooks</th>
+                <th class="py-3 px-4 text-center">Datasets</th>
+                <th class="py-3 px-4 text-center">Cuộc thi</th>
+                <th class="py-3 px-4 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="accountsTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 5: TẤT CẢ NOTEBOOKS ==================== -->
+    <section id="view-kernels" class="hidden space-y-4">
+      <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-100">
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="setKernelStatusFilter('ALL')" id="filter-k-ALL" class="k-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+              Tất cả
+            </button>
+            <button onclick="setKernelStatusFilter('RUNNING')" id="filter-k-RUNNING" class="k-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">
+              🟡 Đang chạy
+            </button>
+            <button onclick="setKernelStatusFilter('ERROR')" id="filter-k-ERROR" class="k-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">
+              🔴 Lỗi
+            </button>
+            <button onclick="setKernelStatusFilter('COMPLETE')" id="filter-k-COMPLETE" class="k-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50">
+              🟢 Hoàn thành
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="kernelAccountSelect" class="px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-blue-500" onchange="renderKernelsTab()">
+              <option value="">-- Tất cả tài khoản --</option>
+            </select>
+            <input 
+              type="text" 
+              id="kernelSearchInput" 
+              placeholder="Tìm theo tên notebook..." 
+              class="px-3 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:bg-white focus:border-blue-500"
+              oninput="renderKernelsTab()"
+            />
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-700">
+            <thead class="bg-slate-50 text-slate-500 uppercase font-semibold text-[11px] border-y border-slate-200">
+              <tr>
+                <th class="py-3 px-4">Tên Notebook</th>
+                <th class="py-3 px-4">Tài khoản</th>
+                <th class="py-3 px-4">Cấu hình</th>
+                <th class="py-3 px-4">Lần chạy cuối</th>
+                <th class="py-3 px-4">Trạng thái</th>
+                <th class="py-3 px-4 text-right">Chi tiết & Log</th>
+              </tr>
+            </thead>
+            <tbody id="kernelsTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 6: DATASETS ==================== -->
+    <section id="view-datasets" class="hidden space-y-4">
+      <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-slate-100">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-base font-semibold text-slate-900">Danh Sách Datasets</h2>
+              <span id="datasetFilterCountBadge" class="px-2 py-0.5 text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200 rounded-full">0 bộ</span>
+            </div>
+            <p class="text-xs text-slate-500">Tất cả tập dữ liệu của các tài khoản • Hỗ trợ sao chép link trực tiếp</p>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <select id="datasetAccountSelect" class="px-2.5 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-blue-500" onchange="renderDatasetsTab()">
+              <option value="">-- Tất cả tài khoản --</option>
+            </select>
+            <input 
+              type="text" 
+              id="datasetSearchInput" 
+              placeholder="Tìm dataset..." 
+              class="px-3 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:bg-white focus:border-blue-500"
+              oninput="renderDatasetsTab()"
+            />
+            <button 
+              id="btnRealtimeSyncDatasets" 
+              onclick="syncDatasetsRealtime()" 
+              class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-lg shadow-sm transition-all cursor-pointer whitespace-nowrap"
+              title="Gửi request trực tiếp đến Kaggle API để lấy các dataset mới nhất theo thời gian thực"
+            >
+              <i data-lucide="refresh-cw" id="iconSyncDatasets" class="w-3.5 h-3.5"></i>
+              <span id="textSyncDatasets">Quét Real-time Kaggle</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-700">
+            <thead class="bg-slate-50 text-slate-500 uppercase font-semibold text-[11px] border-y border-slate-200">
+              <tr>
+                <th class="py-3 px-4">Tên Dataset</th>
+                <th class="py-3 px-4">Tài khoản</th>
+                <th class="py-3 px-4">Kích thước</th>
+                <th class="py-3 px-4">Lượt tải</th>
+                <th class="py-3 px-4">Cập nhật lần cuối</th>
+                <th class="py-3 px-4 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="datasetsTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 7: CUỘC THI ==================== -->
+    <section id="view-competitions" class="hidden space-y-4">
+      <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <div class="mb-4 pb-3 border-b border-slate-100">
+          <h2 class="text-base font-semibold text-slate-900">Các Cuộc Thi Đang Tham Gia</h2>
+          <p class="text-xs text-slate-500">Kaggle Competitions</p>
+        </div>
+        <div id="competitionsList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 8: CREDENTIALS ==================== -->
+    <section id="view-credentials" class="hidden space-y-4">
+      <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+          <div>
+            <h2 class="text-base font-semibold text-slate-900">Quản Lý File Key</h2>
+            <p class="text-xs text-slate-500 font-mono">C:\Users\ADMIN\Desktop\Dashboard-Kaggle\Credentials</p>
+          </div>
+          <button onclick="loadCredentialsInfo()" class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Quét lại
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-700">
+            <thead class="bg-slate-50 text-slate-500 uppercase font-semibold text-[11px] border-y border-slate-200">
+              <tr>
+                <th class="py-3 px-4">Tên File</th>
+                <th class="py-3 px-4">Username</th>
+                <th class="py-3 px-4">API Key (Được che)</th>
+                <th class="py-3 px-4">Kiểm tra</th>
+              </tr>
+            </thead>
+            <tbody id="credentialsTableBody" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MODAL: NOTEBOOK INSPECTOR (INPUT, OUTPUT, VERSION & CODE) ==================== -->
+  <div id="inspectorModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/50 backdrop-blur-[1px] p-2 sm:p-4">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Modal Header -->
+      <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50">
+        <div class="flex items-center gap-3 overflow-hidden">
+          <div class="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
+            <i data-lucide="terminal" class="w-5 h-5"></i>
+          </div>
+          <div class="truncate">
+            <div class="flex items-center gap-2">
+              <h3 id="inspectorTitle" class="text-sm sm:text-base font-bold text-slate-900 truncate">Notebook Title</h3>
+              <span id="inspectorStatusBadge"></span>
+            </div>
+            <p id="inspectorSubtitle" class="text-xs text-slate-500 font-mono truncate">@account / ref</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end flex-shrink-0">
+          <!-- Version Selector Dropdown -->
+          <div class="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-blue-600"></i>
+            <span class="text-xs font-medium text-slate-600">Version:</span>
+            <select id="inspectorVersionSelect" onchange="onInspectorVersionChanged(this.value)" class="text-xs font-bold text-blue-700 bg-transparent focus:outline-none cursor-pointer">
+              <option value="">Đang tải...</option>
+            </select>
+          </div>
+
+          <button onclick="refreshInspectorDetails()" class="px-2.5 py-1.5 text-slate-700 bg-white border border-slate-200 hover:text-blue-600 hover:border-blue-300 rounded-lg text-xs flex items-center gap-1 font-medium shadow-sm cursor-pointer" title="Tải lại chi tiết mới nhất">
+            <i data-lucide="rotate-cw" id="inspectorRefreshIcon" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Làm mới</span>
+          </button>
+          <a id="inspectorKaggleLink" href="#" target="_blank" class="px-2.5 py-1.5 text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-lg text-xs flex items-center gap-1 font-semibold shadow-sm" title="Mở trực tiếp phiên bản này trên Kaggle">
+            <span>Mở trên Kaggle</span>
+            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+          </a>
+          <button onclick="closeInspectorModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Inspector Sub-Tabs -->
+      <div class="flex items-center space-x-1 border-b border-slate-200 px-4 bg-white overflow-x-auto">
+        <button onclick="switchInspectorTab('output')" id="btn-insp-output" class="px-3 py-2 text-xs font-semibold text-blue-600 border-b-2 border-blue-600 flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+          <span>Output Log (Console)</span>
+        </button>
+        <button onclick="switchInspectorTab('input')" id="btn-insp-input" class="px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 border-b-2 border-transparent flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i>
+          <span>Input (Dữ liệu đầu vào)</span>
+          <span id="inspInputCountBadge" class="text-[10px] px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded-full font-semibold">0</span>
+        </button>
+        <button onclick="switchInspectorTab('files')" id="btn-insp-files" class="px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 border-b-2 border-transparent flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i data-lucide="folder-check" class="w-3.5 h-3.5"></i>
+          <span>Output Files (Tệp kết quả)</span>
+          <span id="inspFilesCountBadge" class="text-[10px] px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded-full font-semibold">0</span>
+        </button>
+        <button onclick="switchInspectorTab('code')" id="btn-insp-code" class="px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 border-b-2 border-transparent flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+          <i data-lucide="code-2" class="w-3.5 h-3.5"></i>
+          <span>Mã Nguồn (Code)</span>
+          <span id="inspCodeCountBadge" class="text-[10px] px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded-full font-semibold">0</span>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-4 sm:p-5 overflow-y-auto flex-1 text-xs text-slate-700 space-y-4">
+        
+        <!-- SUB-TAB 1: OUTPUT LOG -->
+        <div id="insp-view-output" class="space-y-3">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-500">Nhật ký tiến trình thực thi trực tiếp từ Kaggle:</span>
+            <div class="flex items-center gap-2">
+              <button onclick="copyInspectorLog()" class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-blue-600 flex items-center gap-1 shadow-sm cursor-pointer">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Sao chép Log
+              </button>
+              <button onclick="downloadInspectorLog()" class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-blue-600 flex items-center gap-1 shadow-sm cursor-pointer">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> Tải .log
+              </button>
+            </div>
+          </div>
+          <!-- Terminal Box -->
+          <div class="relative rounded-lg overflow-hidden border border-slate-300">
+            <pre id="inspectorLogContent" class="log-terminal p-4 text-[12px] leading-relaxed max-h-[50vh] overflow-y-auto font-mono">Đang tải output log...</pre>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 2: INPUT DATA SOURCES -->
+        <div id="insp-view-input" class="hidden space-y-4">
+          <!-- Hardware Config Banner -->
+          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+            <h4 class="font-bold text-slate-900 mb-2">Cấu Hình Tài Nguyên & Môi Trường:</h4>
+            <div class="flex flex-wrap items-center gap-2" id="inspectorHardwareTags">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- Datasets Attached -->
+          <div>
+            <h4 class="font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+              <i data-lucide="database" class="w-4 h-4 text-cyan-600"></i> Datasets Đầu Vào Đính Kèm:
+            </h4>
+            <div id="inspectorInputDatasets" class="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-48 overflow-y-auto">
+              <p class="p-3 text-slate-400">Không có dataset nào đính kèm.</p>
+            </div>
+          </div>
+
+          <!-- Competitions Attached -->
+          <div>
+            <h4 class="font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+              <i data-lucide="trophy" class="w-4 h-4 text-purple-600"></i> Cuộc Thi Đính Kèm:
+            </h4>
+            <div id="inspectorInputCompetitions" class="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-36 overflow-y-auto">
+              <p class="p-3 text-slate-400">Không có cuộc thi nào.</p>
+            </div>
+          </div>
+
+          <!-- Upstream Kernel Sources -->
+          <div>
+            <h4 class="font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+              <i data-lucide="git-merge" class="w-4 h-4 text-blue-600"></i> Notebook Nguồn (Upstream Output):
+            </h4>
+            <div id="inspectorInputKernels" class="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-36 overflow-y-auto">
+              <p class="p-3 text-slate-400">Không sử dụng output từ notebook khác.</p>
+            </div>
+          </div>
+
+          <!-- Models Attached -->
+          <div>
+            <h4 class="font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+              <i data-lucide="cpu" class="w-4 h-4 text-emerald-600"></i> Mô Hình (Models) Đầu Vào:
+            </h4>
+            <div id="inspectorInputModels" class="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-36 overflow-y-auto">
+              <p class="p-3 text-slate-400">Không có model nào đính kèm.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 3: OUTPUT FILES -->
+        <div id="insp-view-files" class="hidden space-y-3">
+          <p class="text-slate-500">Các tệp kết quả (model checkpoint, csv, visualization) được sinh ra sau khi chạy:</p>
+          <div id="inspectorFilesList" class="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-64 overflow-y-auto">
+            <p class="p-4 text-slate-400 text-center">Chưa có file output nào.</p>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 4: NOTEBOOK CODE CELLS (JUPYTER VIEWER) -->
+        <div id="insp-view-code" class="hidden space-y-3">
+          <!-- Code View Toolbar -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <!-- Left: Search & Filters -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <div class="relative w-56 sm:w-64">
+                <i data-lucide="search" class="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="codeSearchInput" oninput="filterNotebookCells(this.value)" placeholder="Tìm kiếm trong code..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-sm">
+              </div>
+
+              <!-- Filter Pills -->
+              <div class="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 text-[11px]">
+                <button onclick="filterCellType('all')" id="btn-cell-filter-all" class="px-2 py-1 rounded font-semibold text-blue-600 bg-blue-50 transition-colors cursor-pointer">Tất cả</button>
+                <button onclick="filterCellType('code')" id="btn-cell-filter-code" class="px-2 py-1 rounded font-medium text-slate-600 hover:text-slate-900 transition-colors cursor-pointer">Chỉ Code</button>
+                <button onclick="filterCellType('markdown')" id="btn-cell-filter-md" class="px-2 py-1 rounded font-medium text-slate-600 hover:text-slate-900 transition-colors cursor-pointer">Ghi chú</button>
+              </div>
+
+              <span id="codeSearchStatsBadge" class="text-[11px] text-slate-500 font-medium ml-1"></span>
+            </div>
+
+            <!-- Right: Actions -->
+            <div class="flex items-center gap-2 flex-wrap justify-end">
+              <button onclick="toggleAllCells()" id="btnToggleAllCells" class="px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 flex items-center gap-1 shadow-sm cursor-pointer" title="Thu gọn / Mở rộng tất cả cells">
+                <i data-lucide="chevrons-up-down" class="w-3.5 h-3.5"></i> <span id="toggleAllCellsText">Thu gọn hết</span>
+              </button>
+              <button onclick="copyAllNotebookCode()" class="px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 hover:text-blue-600 flex items-center gap-1 shadow-sm cursor-pointer" title="Sao chép toàn bộ mã nguồn script">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Sao chép toàn bộ
+              </button>
+              <button onclick="downloadNotebookPy()" class="px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center gap-1 shadow-sm cursor-pointer" title="Tải mã nguồn về máy (.py)">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> Tải .py
+              </button>
+            </div>
+          </div>
+
+          <!-- Cells List Container -->
+          <div id="inspectorCodeCellsList" class="space-y-3.5 max-h-[56vh] overflow-y-auto pr-1">
+            <p class="p-8 text-slate-400 text-center">Đang tải mã nguồn notebook...</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+        <span class="text-[11px] text-slate-500">Nhấn <strong>Esc</strong> hoặc bấm Đóng để thoát</span>
+        <button onclick="closeInspectorModal()" class="px-4 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 cursor-pointer">
+          Đóng
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+
+
+  <!-- ==================== MODAL: ACCOUNT DETAIL ==================== -->
+  <div id="accountModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-[1px] p-4">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-3">
+          <img id="modalAvatar" src="" class="w-11 h-11 rounded-full border border-slate-200 object-cover bg-white" alt="Avatar" onerror="this.src='https://storage.googleapis.com/kaggle-avatars/thumbnails/default-thumb.png'">
+          <div>
+            <h3 id="modalName" class="text-base font-bold text-slate-900">Tên tài khoản</h3>
+            <p id="modalUser" class="text-xs text-blue-600 font-mono">@username</p>
+          </div>
+        </div>
+        <button onclick="closeAccountModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto flex-1 space-y-4 text-xs text-slate-700">
+        <div class="grid grid-cols-3 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-center">
+          <div>
+            <span class="block text-slate-400 font-medium">Notebooks</span>
+            <span id="modalKernelsCount" class="text-lg font-bold text-slate-800">0</span>
+          </div>
+          <div>
+            <span class="block text-slate-400 font-medium">Datasets</span>
+            <span id="modalDatasetsCount" class="text-lg font-bold text-slate-800">0</span>
+          </div>
+          <div>
+            <span class="block text-slate-400 font-medium">Cuộc thi</span>
+            <span id="modalCompsCount" class="text-lg font-bold text-slate-800">0</span>
+          </div>
+        </div>
+
+        <div id="modalBioContainer" class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hidden">
+          <span class="font-semibold text-slate-800 block mb-1">Giới thiệu:</span>
+          <p id="modalBio" class="text-xs leading-relaxed"></p>
+        </div>
+
+        <div>
+          <h4 class="font-semibold text-slate-900 mb-2">Danh Sách Notebooks:</h4>
+          <div id="modalKernelsList" class="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto"></div>
+        </div>
+
+        <div>
+          <h4 class="font-semibold text-slate-900 mb-2">Danh Sách Datasets:</h4>
+          <div id="modalDatasetsList" class="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-48 overflow-y-auto"></div>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+        <a id="modalKaggleProfileLink" href="#" target="_blank" class="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-medium">
+          Mở trang cá nhân trên Kaggle <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+        </a>
+        <button onclick="closeAccountModal()" class="px-4 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100">
+          Đóng
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    let currentTab = 'overview';
+    let globalOverview = null;
+    let accountsData = [];
+    let kernelsData = [];
+    let datasetsData = [];
+    let competitionsData = [];
+    let quotasData = null;
+    let autoRefreshTimer = null;
+    let kernelStatusFilter = 'ALL';
+    let currentInspectedKernel = null;
+
+    // Status Badge Helpers (Flat solid colors, NO gradients)
+    function renderStatusBadge(status, failureMessage = '') {
+      const s = (status || 'UNKNOWN').toUpperCase();
+      if (s === 'COMPLETE') {
+        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Hoàn thành
+        </span>`;
+      }
+      if (s === 'RUNNING' || s === 'RUNNING_INTERACTIVE') {
+        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Đang chạy
+        </span>`;
+      }
+      if (s === 'QUEUED') {
+        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Đang chờ
+        </span>`;
+      }
+      if (s === 'ERROR' || s === 'CANCEL_ACKNOWLEDGED' || s === 'FAILED') {
+        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-200" title="${failureMessage || 'Có lỗi xảy ra'}">
+          <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Lỗi
+        </span>`;
+      }
+      return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> ${status}
+      </span>`;
+    }
+
+    // Switch Tabs
+    function switchTab(tabName) {
+      currentTab = tabName;
+      ['overview', 'running', 'quotas', 'accounts', 'kernels', 'datasets', 'competitions', 'credentials'].forEach(t => {
+        const viewEl = document.getElementById(`view-${t}`);
+        const btnEl = document.getElementById(`tab-${t}`);
+        if (!viewEl || !btnEl) return;
+        if (t === tabName) {
+          viewEl.classList.remove('hidden');
+          btnEl.className = 'tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-blue-600 bg-blue-50 flex items-center gap-2';
+        } else {
+          viewEl.classList.add('hidden');
+          btnEl.className = 'tab-btn px-3 py-1.5 text-sm font-medium rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-2';
+        }
+      });
+      lucide.createIcons();
+
+      if (tabName === 'running') renderRunningTab();
+      if (tabName === 'quotas') renderQuotasTab();
+      if (tabName === 'accounts') renderAccountsTab();
+      if (tabName === 'kernels') renderKernelsTab();
+      if (tabName === 'datasets') renderDatasetsTab();
+      if (tabName === 'competitions') renderCompetitionsTab();
+      if (tabName === 'credentials') loadCredentialsInfo();
+    }
+
+    // Toast Notification
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const colorClass = type === 'success' ? 'bg-emerald-600 text-white' : (type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white');
+      toast.className = `px-4 py-2 rounded-lg shadow-md text-xs font-medium flex items-center gap-2 transition-all duration-300 pointer-events-auto ${colorClass}`;
+      toast.innerHTML = `<span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // Load Data
+    async function loadData() {
+      try {
+        const res = await fetch('/api/overview');
+        const data = await res.json();
+        globalOverview = data;
+
+        document.getElementById('lastSyncedText').innerText = data.last_synced_human || 'Chưa đồng bộ';
+
+        const banner = document.getElementById('refreshBanner');
+        const bannerText = document.getElementById('refreshBannerText');
+        const refreshIcon = document.getElementById('refreshIcon');
+
+        if (data.is_refreshing) {
+          banner.classList.remove('hidden');
+          bannerText.innerText = data.refresh_progress || 'Đang cập nhật từ Kaggle API...';
+          refreshIcon.classList.add('animate-spin-custom');
+        } else {
+          banner.classList.add('hidden');
+          refreshIcon.classList.remove('animate-spin-custom');
+        }
+
+        const sum = data.summary || {};
+        document.getElementById('statTotalAccounts').innerText = sum.total_accounts || 0;
+        document.getElementById('statValidAccounts').innerText = `${sum.valid_accounts || 0} hợp lệ`;
+        document.getElementById('statTotalKernels').innerText = sum.total_kernels || 0;
+        document.getElementById('statRunningKernels').innerText = sum.running_kernels || 0;
+        document.getElementById('statQueuedKernels').innerText = `${sum.queued_kernels || 0} chờ`;
+        document.getElementById('statErrorKernels').innerText = sum.error_kernels || 0;
+        document.getElementById('statTotalDatasets').innerText = sum.total_datasets || 0;
+        document.getElementById('statTotalCompetitions').innerText = sum.total_competitions || 0;
+
+        document.getElementById('tabBadgeAccounts').innerText = sum.total_accounts || 0;
+        document.getElementById('tabBadgeKernels').innerText = sum.total_kernels || 0;
+        document.getElementById('tabBadgeDatasets').innerText = sum.total_datasets || 0;
+        document.getElementById('tabBadgeCompetitions').innerText = sum.total_competitions || 0;
+        document.getElementById('tabBadgeRunning').innerText = (sum.running_kernels || 0) + (sum.queued_kernels || 0);
+
+        // Show/Hide Running Alert Banner
+        const runningAlert = document.getElementById('runningAlertBanner');
+        const totalRunning = (sum.running_kernels || 0) + (sum.queued_kernels || 0);
+        if (totalRunning > 0) {
+          runningAlert.classList.remove('hidden');
+          document.getElementById('runningAlertText').innerText = `Đang có ${sum.running_kernels || 0} notebook đang chạy và ${sum.queued_kernels || 0} notebook đang chờ.`;
+        } else {
+          runningAlert.classList.add('hidden');
+        }
+
+        await Promise.all([
+          fetchAccounts(),
+          fetchKernels(),
+          fetchDatasets(),
+          fetchCompetitions(),
+          fetchQuotas()
+        ]);
+
+        renderOverviewTab();
+        lucide.createIcons();
+      } catch (err) {
+        console.error('Error loading data:', err);
+      }
+    }
+
+    async function fetchAccounts() {
+      const res = await fetch('/api/accounts');
+      accountsData = await res.json();
+      populateAccountSelects();
+    }
+
+    async function fetchKernels() {
+      const res = await fetch('/api/kernels');
+      kernelsData = await res.json();
+    }
+
+    async function fetchDatasets() {
+      const res = await fetch('/api/datasets');
+      datasetsData = await res.json();
+    }
+
+    async function fetchCompetitions() {
+      const res = await fetch('/api/competitions');
+      competitionsData = await res.json();
+    }
+
+    async function fetchQuotas() {
+      const res = await fetch('/api/quotas', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Quota request failed: ${res.status}`);
+      quotasData = await res.json();
+      if (quotasData && quotasData.reset_info) {
+        document.getElementById('headerQuotaCountdown').innerText = quotasData.reset_info.countdown_human;
+        document.getElementById('quotaCountdownText').innerText = quotasData.reset_info.countdown_human;
+        document.getElementById('quotaResetDateText').innerText = `${quotasData.reset_info.reset_date_vn || ''} (${quotasData.reset_info.reset_date})`;
+      }
+    }
+
+    function populateAccountSelects() {
+      const selects = [document.getElementById('kernelAccountSelect'), document.getElementById('datasetAccountSelect')];
+      selects.forEach(sel => {
+        if (!sel) return;
+        const curVal = sel.value;
+        sel.innerHTML = '<option value="">-- Tất cả tài khoản --</option>';
+        accountsData.forEach(a => {
+          const opt = document.createElement('option');
+          opt.value = a.username;
+          opt.innerText = `${a.username} (${a.display_name})`;
+          sel.appendChild(opt);
+        });
+        sel.value = curVal;
+      });
+    }
+
+    // ==================== TAB 1: OVERVIEW RENDERING ====================
+    function renderOverviewTab() {
+      const grid = document.getElementById('overviewAccountsGrid');
+      if (accountsData.length === 0) {
+        grid.innerHTML = '<p class="text-xs text-slate-400 col-span-full py-4 text-center">Chưa có tài khoản nào.</p>';
+      } else {
+        grid.innerHTML = accountsData.map(acc => `
+          <div onclick="openAccountModal('${acc.username}')" class="p-3.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-lg cursor-pointer transition-colors flex items-center justify-between">
+            <div class="flex items-center gap-2.5 overflow-hidden">
+              <img src="${acc.avatar_url || ''}" class="w-9 h-9 rounded-full border border-slate-200 object-cover bg-white flex-shrink-0" onerror="this.src='https://storage.googleapis.com/kaggle-avatars/thumbnails/default-thumb.png'">
+              <div class="truncate">
+                <div class="flex items-center gap-1.5">
+                  <h4 class="text-xs font-bold text-slate-900 truncate">${acc.display_name || acc.username}</h4>
+                  ${acc.valid ? '<span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" title="Đã xác thực"></span>' : '<span class="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" title="Lỗi xác thực"></span>'}
+                </div>
+                <p class="text-[11px] text-slate-500 font-mono truncate">@${acc.username}</p>
+              </div>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <div class="flex items-center gap-2 text-[11px] text-slate-600 font-medium">
+                <span title="Notebooks"><strong class="text-slate-800">${acc.kernels_count}</strong> NB</span>
+                <span>•</span>
+                <span title="Datasets"><strong class="text-slate-800">${acc.datasets_count}</strong> DS</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono">${acc.file}</span>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      const recentContainer = document.getElementById('overviewRecentKernels');
+      const sortedKernels = [...kernelsData].slice(0, 5);
+      if (sortedKernels.length === 0) {
+        recentContainer.innerHTML = '<p class="text-xs text-slate-400 py-4 text-center">Không có notebook nào.</p>';
+      } else {
+        recentContainer.innerHTML = sortedKernels.map(k => `
+          <div class="py-2.5 flex items-center justify-between gap-2">
+            <div class="truncate">
+              <div class="flex items-center gap-1.5">
+                <a href="javascript:void(0)" onclick="openInspectorModal('${k.account}', '${k.ref}')" class="text-xs font-semibold text-slate-900 hover:text-blue-600 truncate block">
+                  ${k.title}
+                </a>
+              </div>
+              <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                <span class="text-slate-600 font-medium font-mono">@${k.account}</span>
+                <span>•</span>
+                <span>${k.last_run_human}</span>
+                ${k.enable_gpu ? '<span class="px-1 py-0.2 bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-semibold rounded">GPU</span>' : ''}
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              ${renderStatusBadge(k.status)}
+              <button onclick="openInspectorModal('${k.account}', '${k.ref}')" class="px-2 py-0.5 text-[11px] font-medium text-blue-600 hover:bg-blue-50 border border-blue-200 rounded">
+                Soi Log
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      const attentionContainer = document.getElementById('overviewAttentionList');
+      const attentionList = kernelsData.filter(k => ['RUNNING', 'RUNNING_INTERACTIVE', 'QUEUED', 'ERROR', 'CANCEL_ACKNOWLEDGED'].includes((k.status || '').toUpperCase()));
+      document.getElementById('overviewAttentionCount').innerText = `${attentionList.length} mục`;
+
+      if (attentionList.length === 0) {
+        attentionContainer.innerHTML = '<div class="py-6 text-center text-xs text-emerald-600 font-medium">✓ Tất cả các notebook đều ở trạng thái an toàn hoặc hoàn thành.</div>';
+      } else {
+        attentionContainer.innerHTML = attentionList.map(k => `
+          <div class="py-2.5 flex items-center justify-between gap-2">
+            <div class="truncate">
+              <a href="javascript:void(0)" onclick="openInspectorModal('${k.account}', '${k.ref}')" class="text-xs font-semibold text-slate-900 hover:text-blue-600 truncate block">
+                ${k.title}
+              </a>
+              <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                <span class="text-slate-600 font-medium font-mono">@${k.account}</span>
+                <span>•</span>
+                <span>${k.last_run_human}</span>
+                ${k.failure_message ? `<span class="text-red-500 font-mono text-[10px] truncate max-w-[150px]">${k.failure_message}</span>` : ''}
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              ${renderStatusBadge(k.status, k.failure_message)}
+              <button onclick="openInspectorModal('${k.account}', '${k.ref}')" class="px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-slate-100 border border-slate-200 rounded">
+                Xem Log
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // ==================== TAB 2: RUNNING MONITOR (INSTANT LOAD) ====================
+    async function renderRunningTab() {
+      const container = document.getElementById('runningListContainer');
+      // If already rendered, do not wipe with spinner, keep existing view
+      if (!container.innerHTML || container.innerHTML.trim() === '') {
+        container.innerHTML = '<p class="text-xs text-slate-400 py-4 text-center">Đang nạp danh sách...</p>';
+      }
+
+      try {
+        const res = await fetch('/api/kernels/running?live_scan=false');
+        const data = await res.json();
+        const list = data.items || [];
+        document.getElementById('runningMonitorBadge').innerText = `${list.length} Active`;
+        document.getElementById('tabBadgeRunning').innerText = list.length;
+
+        if (list.length === 0) {
+          container.innerHTML = `
+            <div class="p-8 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <i data-lucide="check-circle" class="w-8 h-8 text-emerald-500 mx-auto"></i>
+              <h3 class="text-sm font-bold text-slate-800">Hiện Tại Không Có Notebook Nào Đang Chạy</h3>
+              <p class="text-xs text-slate-500 max-w-md mx-auto">Tất cả các tài khoản đang ở trạng thái rảnh hoặc đã hoàn thành. Bạn không bị tiêu hao quota GPU ngoài ý muốn.</p>
+              <button onclick="switchTab('kernels')" class="mt-2 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:underline">
+                Xem danh sách tất cả Notebooks ↗
+              </button>
+            </div>
+          `;
+          lucide.createIcons();
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${list.map(k => `
+              <div class="p-4 bg-amber-50/70 border border-amber-300 rounded-xl space-y-3 shadow-sm hover:border-amber-400 transition-colors">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <div class="flex items-center gap-1.5 flex-wrap mb-1.5">
+                      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> ĐANG CHẠY TRỰC TIẾP
+                      </span>
+                      ${k.version_number ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Phiên bản: Version ${k.version_number}</span>` : ''}
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-900 leading-snug">
+                      <a href="javascript:void(0)" onclick="openInspectorModal('${k.account}', '${k.ref}')" class="hover:text-blue-600">${k.title}</a>
+                    </h3>
+                    <p class="text-xs text-blue-700 font-mono">@${k.account} • ${k.ref}</p>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    ${k.enable_gpu ? '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-300 block mb-1">⚡ GPU Active</span>' : '<span class="px-2 py-0.5 rounded text-[11px] bg-slate-200 text-slate-700 block mb-1">CPU</span>'}
+                    <span class="text-[10px] text-slate-500 font-mono block">${k.last_run_human}</span>
+                  </div>
+                </div>
+
+                <div class="pt-2.5 border-t border-amber-200 flex items-center justify-between gap-2">
+                  <button onclick="checkSingleStatus('${k.account}', '${k.ref}')" class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 flex items-center gap-1">
+                    <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Cập nhật trạng thái
+                  </button>
+                  <button onclick="openInspectorModal('${k.account}', '${k.ref}')" class="px-3 py-1 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-1 shadow-sm">
+                    <i data-lucide="terminal" class="w-3.5 h-3.5"></i> Soi Input & Output Log ↗
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        lucide.createIcons();
+      } catch (err) {
+        container.innerHTML = '<p class="text-xs text-red-500 py-4 text-center">Lỗi khi tải danh sách đang chạy.</p>';
+      }
+    }
+
+    async function waitForRunningScan(timeoutMs = 60000) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const res = await fetch('/api/kernels/scan-status', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Scan status request failed: ${res.status}`);
+        const status = await res.json();
+        if (!status.is_scanning) {
+          if (status.error) throw new Error(status.error);
+          return status;
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      throw new Error('Live scan timed out.');
+    }
+
+    async function runRealtimeScan() {
+      // Use the synchronous live endpoint so quota data is read only after
+      // the Kaggle scan has actually completed, not after a fixed delay.
+      const res = await fetch('/api/kernels/running?live_scan=true', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Scan request failed: ${res.status}`);
+      const data = await res.json();
+      if (data.scan_in_progress) {
+        await waitForRunningScan();
+        const latest = await fetch('/api/kernels/running?live_scan=false', { cache: 'no-store' });
+        if (!latest.ok) throw new Error(`Running state request failed: ${latest.status}`);
+        return latest.json();
+      }
+      return data;
+    }
+
+    async function triggerRunningScanNow() {
+      showToast('Đang quét trực tiếp các session...', 'info');
+      const icon = document.getElementById('runningScanIcon');
+      if (icon) icon.classList.add('animate-spin-custom');
+      try {
+        await runRealtimeScan();
+        await renderRunningTab();
+        showToast('Đã cập nhật trạng thái mới nhất!', 'success');
+      } catch (e) {
+        console.error('Live running scan failed:', e);
+        showToast(e.message || 'Không thể quét real-time.', 'error');
+      } finally {
+        if (icon) icon.classList.remove('animate-spin-custom');
+      }
+    }
+
+    async function refreshQuotasRealtime() {
+      showToast('Đang lấy quota GPU/TPU trực tiếp từ Kaggle...', 'info');
+      const icon = document.getElementById('quotaRefreshIcon');
+      if (icon) icon.classList.add('animate-spin-custom');
+      try {
+        const res = await fetch('/api/quotas/scan-now', {
+          method: 'POST',
+          cache: 'no-store'
+        });
+        if (!res.ok) throw new Error(`Quota scan request failed: ${res.status}`);
+        const payload = await res.json();
+        if (!payload.success) {
+          const firstError = payload.scan && payload.scan.errors && payload.scan.errors[0];
+          throw new Error((firstError && (firstError.error || firstError.username)) || 'Kaggle không trả về quota.');
+        }
+        await renderQuotasTab();
+        const updated = payload.scan && payload.scan.updated;
+        showToast(`Đã cập nhật quota GPU/TPU cho ${updated || 0} tài khoản.`, 'success');
+      } catch (e) {
+        console.error('Live quota scan failed:', e);
+        showToast(e.message || 'Không thể lấy quota từ Kaggle.', 'error');
+      } finally {
+        if (icon) icon.classList.remove('animate-spin-custom');
+      }
+    }
+
+    // ==================== TAB 3: QUOTAS & RESOURCE MONITORING ====================
+    async function renderQuotasTab() {
+      const container = document.getElementById('quotaGridContainer');
+      container.innerHTML = '<p class="text-xs text-slate-400 col-span-full py-8 text-center"><i data-lucide="loader-2" class="w-5 h-5 animate-spin-custom mx-auto mb-2 text-blue-500"></i> Đang tải thông tin tài nguyên thời gian thực...</p>';
+      lucide.createIcons();
+
+      await fetchQuotas();
+      const accountsQuota = (quotasData && quotasData.accounts_quota) || [];
+
+      if (accountsQuota.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 col-span-full py-8 text-center">Không có dữ liệu tài khoản.</p>';
+        return;
+      }
+
+      container.innerHTML = accountsQuota.map(acc => {
+        const hasRunning = acc.total_active_sessions > 0;
+
+        const activeSessionsBadge = hasRunning 
+          ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
+               <span class="w-2 h-2 rounded-full bg-amber-500"></span> Đang chạy ${acc.total_active_sessions} notebook
+             </span>`
+          : `<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Đang rảnh
+             </span>`;
+
+        // GPU quota is unknown until a real value has been recorded. Never
+        // turn a missing value into a misleading 30/30h display.
+        const gpuMax = Number(acc.gpu_max) || 30;
+        const hasGpuQuota = acc.gpu_quota_known === true && Number.isFinite(Number(acc.gpu_remaining));
+        const gpuRem = hasGpuQuota ? Math.max(0, Number(acc.gpu_remaining)) : 0;
+        const isExhausted = hasGpuQuota && (acc.is_exhausted || gpuRem <= 0);
+        const gpuPct = hasGpuQuota ? Math.min(100, Math.max(0, (gpuRem / gpuMax) * 100)) : 0;
+        const gpuColor = isExhausted ? 'bg-red-500' : (gpuPct > 50 ? 'bg-emerald-500' : (gpuPct > 20 ? 'bg-amber-500' : 'bg-red-500'));
+
+        // TPU follows the same rule as GPU: only explicit values are shown as
+        // quota balances; live sessions are always reported separately.
+        const tpuMax = Number(acc.tpu_max) || 20;
+        const hasTpuQuota = acc.tpu_quota_known === true && Number.isFinite(Number(acc.tpu_remaining));
+        const tpuRem = hasTpuQuota ? Math.max(0, Number(acc.tpu_remaining)) : 0;
+        const tpuIsExhausted = hasTpuQuota && (acc.tpu_is_exhausted || tpuRem <= 0);
+        const tpuPct = hasTpuQuota ? Math.min(100, Math.max(0, (tpuRem / tpuMax) * 100)) : 0;
+        const tpuColor = tpuIsExhausted ? 'bg-red-500' : (tpuPct > 50 ? 'bg-emerald-500' : (tpuPct > 20 ? 'bg-amber-500' : 'bg-red-500'));
+
+        // CPU Quota calculation (Kaggle max 10 concurrent sessions)
+        const cpuMax = acc.cpu_max_sessions || 10;
+        const cpuActive = acc.active_cpu_sessions || 0;
+        const cpuPct = Math.min(100, Math.max(0, (cpuActive / cpuMax) * 100));
+        const cpuColor = cpuPct > 80 ? 'bg-red-500' : (cpuPct > 40 ? 'bg-amber-500' : 'bg-blue-500');
+
+        const gpuBoxHtml = isExhausted
+          ? `
+            <div class="space-y-1.5 p-3 bg-red-50/80 border border-red-200 rounded-lg">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-red-900 flex items-center gap-1">
+                  <i data-lucide="zap-off" class="w-3.5 h-3.5 text-red-600"></i> Quota GPU:
+                </span>
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-700 border border-red-300">
+                  🔴 ĐÃ HẾT QUOTA (0.0 / ${gpuMax}h)
+                </span>
+              </div>
+              <div class="w-full h-2 bg-red-100 rounded-full overflow-hidden border border-red-200">
+                <div class="h-full bg-red-500" style="width: 0%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-red-700">
+                <span>Khả dụng: <strong>0% (0.0h)</strong></span>
+                <span>${acc.active_gpu_sessions > 0 ? `Đang chạy: <strong class="font-bold">${acc.active_gpu_sessions} GPU</strong>` : 'Đang rảnh (0 GPU)'}</span>
+              </div>
+              ${acc.notes ? `<p class="text-[10.5px] text-red-600 pt-0.5 border-t border-red-200/60 font-medium">⚠️ ${acc.notes}</p>` : ''}
+            </div>
+          `
+          : hasGpuQuota ? `
+            <div class="space-y-1.5 p-2.5 bg-purple-50/50 border border-purple-100 rounded-lg">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-purple-900 flex items-center gap-1">
+                  <i data-lucide="zap" class="w-3.5 h-3.5 text-purple-600"></i> Quota GPU:
+                </span>
+                <span class="font-mono font-bold text-slate-900">${gpuRem.toFixed(1)} / ${gpuMax}h</span>
+              </div>
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <div class="h-full ${gpuColor} transition-all duration-300" style="width: ${gpuPct}%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-600">
+                <span>Khả dụng: <strong>${gpuPct.toFixed(0)}%</strong></span>
+                <span>${acc.active_gpu_sessions > 0 ? `Đang chạy: <strong class="text-purple-700 font-bold">${acc.active_gpu_sessions} GPU (~${acc.running_gpu_hours}h)</strong>` : 'Đang rảnh (0 GPU)'}</span>
+              </div>
+            </div>
+          ` : `
+            <div class="space-y-1.5 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-slate-700 flex items-center gap-1">
+                  <i data-lucide="zap-off" class="w-3.5 h-3.5 text-slate-500"></i> Quota GPU:
+                </span>
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
+                  CHƯA XÁC ĐỊNH
+                </span>
+              </div>
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <div class="h-full bg-slate-300" style="width: 0%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-600">
+                <span>Số dư thật: xem trên Kaggle</span>
+                <span>${acc.active_gpu_sessions > 0 ? `Đang chạy: <strong class="font-bold">${acc.active_gpu_sessions} GPU</strong>` : 'Đang rảnh (0 GPU)'}</span>
+              </div>
+              <p class="text-[10.5px] text-slate-500 pt-0.5 border-t border-slate-200/80">
+                Chưa có số dư quota được xác thực; không suy diễn thành 30h.
+              </p>
+            </div>
+          `;
+
+        const tpuBoxHtml = hasTpuQuota
+          ? `
+            <div class="space-y-1.5 p-2.5 bg-cyan-50/50 border border-cyan-100 rounded-lg">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-cyan-900 flex items-center gap-1">
+                  <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-600"></i> Quota TPU:
+                </span>
+                <span class="font-mono font-bold text-slate-900">${tpuRem.toFixed(1)} / ${tpuMax}h</span>
+              </div>
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <div class="h-full ${tpuColor} transition-all duration-300" style="width: ${tpuPct}%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-600">
+                <span>Khả dụng: <strong>${tpuPct.toFixed(0)}%</strong></span>
+                <span>${acc.active_tpu_sessions > 0 ? `Đang chạy: <strong class="text-cyan-700 font-bold">${acc.active_tpu_sessions} TPU</strong>` : 'Đang rảnh (0 TPU)'}</span>
+              </div>
+            </div>
+          `
+          : `
+            <div class="space-y-1.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-slate-700 flex items-center gap-1">
+                  <i data-lucide="cpu" class="w-3.5 h-3.5 text-slate-500"></i> Quota TPU:
+                </span>
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-300">CHƯA XÁC ĐỊNH</span>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-600">
+                <span>Số dư thật: xem trên Kaggle</span>
+                <span>${acc.active_tpu_sessions > 0 ? `Đang chạy: <strong class="font-bold">${acc.active_tpu_sessions} TPU</strong>` : 'Đang rảnh (0 TPU)'}</span>
+              </div>
+            </div>
+          `;
+
+        // Render running sessions detail list if any
+        let runningListHtml = '';
+        if (acc.running_sessions_detail && acc.running_sessions_detail.length > 0) {
+          runningListHtml = `
+            <div class="space-y-1.5 pt-1">
+              <span class="text-[11px] font-semibold text-slate-600 flex items-center gap-1">
+                <i data-lucide="play-circle" class="w-3.5 h-3.5 text-amber-600"></i> Notebook đang chạy ngay lúc này:
+              </span>
+              <div class="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                ${acc.running_sessions_detail.map(s => {
+                  const isGpu = s.hardware === 'GPU';
+                  const isTpu = s.hardware === 'TPU';
+                  const hwBadge = isGpu
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200 flex-shrink-0">⚡ GPU</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 flex-shrink-0">💻 CPU</span>';
+                  return `
+                    <div class="p-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-2 text-xs hover:bg-slate-100/80 transition-colors">
+                      <div class="min-w-0 flex-1">
+                        <a href="${s.url}" target="_blank" class="font-medium text-slate-900 hover:text-blue-600 truncate block hover:underline" title="${s.title}">
+                          ${s.title}
+                        </a>
+                        <span class="text-[10px] text-slate-500 block mt-0.5">Đã chạy ~${s.running_hours}h (${s.last_run_human})</span>
+                      </div>
+                      ${isTpu ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-700 border border-cyan-200 flex-shrink-0">TPU</span>' : hwBadge}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        } else {
+          runningListHtml = `
+            <div class="py-2 px-3 text-center bg-slate-50/60 rounded-lg border border-dashed border-slate-200 text-slate-400 text-xs flex items-center justify-center gap-1.5">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-500"></i>
+              <span>Không có notebook nào đang chạy</span>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:border-slate-300 transition-colors space-y-3.5">
+            <!-- Card Header -->
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <img src="${acc.avatar_url || ''}" class="w-10 h-10 rounded-full border border-slate-200 object-cover bg-white flex-shrink-0" onerror="this.src='https://storage.googleapis.com/kaggle-avatars/thumbnails/default-thumb.png'">
+                <div class="truncate">
+                  <h4 class="text-xs font-bold text-slate-900 truncate">${acc.display_name || acc.username}</h4>
+                  <p class="text-[11px] text-blue-600 font-mono truncate">@${acc.username}</p>
+                </div>
+              </div>
+              <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                ${activeSessionsBadge}
+              </div>
+            </div>
+
+            <!-- 1. QUOTA GPU BAR -->
+            ${gpuBoxHtml}
+
+            <!-- 2. QUOTA TPU BAR -->
+            ${tpuBoxHtml}
+
+            <!-- 3. QUOTA CPU BAR (Concurrency limit: max 10 sessions) -->
+            <div class="space-y-1.5 p-2.5 bg-blue-50/50 border border-blue-100 rounded-lg">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-bold text-blue-900 flex items-center gap-1">
+                  <i data-lucide="cpu" class="w-3.5 h-3.5 text-blue-600"></i> Quota CPU (Đồng thời):
+                </span>
+                <span class="font-mono font-bold text-slate-900">${cpuActive} / ${cpuMax} phiên</span>
+              </div>
+              <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <div class="h-full ${cpuColor} transition-all duration-300" style="width: ${Math.max(cpuPct, cpuActive > 0 ? 10 : 0)}%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-600">
+                <span>Đang dùng: <strong>${cpuActive} phiên CPU</strong></span>
+                <span>Tuần này: <strong>${acc.cpu_runs_this_week} lượt chạy</strong></span>
+              </div>
+            </div>
+
+            <!-- 4. ACTIVE RUNNING NOTEBOOKS LIST -->
+            ${runningListHtml}
+
+            <!-- Weekly Activity Summary -->
+            <div class="pt-1 flex items-center justify-between text-[11px] text-slate-500">
+              <span>Đã chạy tuần này:</span>
+              <span class="font-medium text-slate-800">
+                <strong class="text-purple-700 font-bold">${acc.gpu_runs_this_week}</strong> GPU, 
+                <strong class="text-cyan-700 font-bold">${acc.tpu_runs_this_week}</strong> TPU,
+                <strong class="text-blue-700 font-bold">${acc.cpu_runs_this_week}</strong> CPU
+              </span>
+            </div>
+
+            <!-- Card Actions (Direct Kaggle Link, NO EDIT BUTTON) -->
+            <div class="pt-2 border-t border-slate-100">
+              <a href="${acc.gpu_settings_url}" target="_blank" class="w-full text-center py-2 px-3 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-800 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-xs" title="Mở Kaggle để xem số giờ GPU/TPU còn lại trên thanh công cụ notebook">
+                <span>Mở Kaggle xem Quota thực tế</span> <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              </a>
+            </div>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    // ==================== TAB 4 & 5: NOTEBOOKS TABLE & INSPECTOR ====================
+    function setKernelStatusFilter(status) {
+      kernelStatusFilter = status;
+      ['ALL', 'RUNNING', 'ERROR', 'COMPLETE'].forEach(s => {
+        const btn = document.getElementById(`filter-k-${s}`);
+        if (s === status) {
+          btn.className = 'k-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 border border-blue-200';
+        } else {
+          btn.className = 'k-filter-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-white text-slate-600 border border-slate-200 hover:bg-slate-50';
+        }
+      });
+      renderKernelsTab();
+    }
+
+    function renderKernelsTab() {
+      const tbody = document.getElementById('kernelsTableBody');
+      const accountFilter = document.getElementById('kernelAccountSelect').value;
+      const search = (document.getElementById('kernelSearchInput').value || '').toLowerCase().trim();
+
+      let filtered = kernelsData;
+      if (accountFilter) filtered = filtered.filter(k => k.account === accountFilter);
+
+      if (kernelStatusFilter !== 'ALL') {
+        if (kernelStatusFilter === 'RUNNING') {
+          filtered = filtered.filter(k => ['RUNNING', 'RUNNING_INTERACTIVE', 'QUEUED'].includes((k.status || '').toUpperCase()));
+        } else if (kernelStatusFilter === 'ERROR') {
+          filtered = filtered.filter(k => ['ERROR', 'CANCEL_ACKNOWLEDGED', 'FAILED'].includes((k.status || '').toUpperCase()));
+        } else if (kernelStatusFilter === 'COMPLETE') {
+          filtered = filtered.filter(k => (k.status || '').toUpperCase() === 'COMPLETE');
+        }
+      }
+
+      if (search) {
+        filtered = filtered.filter(k => k.title.toLowerCase().includes(search) || k.ref.toLowerCase().includes(search) || k.account.toLowerCase().includes(search));
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-400">Không có notebook nào thỏa mãn bộ lọc.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(k => `
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="py-3 px-4 max-w-xs">
+            <a href="javascript:void(0)" onclick="openInspectorModal('${k.account}', '${k.ref}')" class="font-bold text-slate-900 hover:text-blue-600 block truncate" title="${k.title}">
+              ${k.title}
+            </a>
+            <span class="text-[11px] text-slate-400 font-mono block truncate">${k.ref}</span>
+          </td>
+          <td class="py-3 px-4">
+            <span class="font-mono text-xs text-blue-600 font-medium">@${k.account}</span>
+          </td>
+          <td class="py-3 px-4">
+            <div class="flex items-center gap-1 flex-wrap">
+              ${k.enable_gpu ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">GPU</span>' : '<span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-400">CPU</span>'}
+              ${k.enable_internet ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">Internet</span>' : ''}
+              ${k.is_private ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700 border border-amber-200">Private</span>' : '<span class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">Public</span>'}
+            </div>
+          </td>
+          <td class="py-3 px-4">
+            <span class="text-slate-800 block">${k.last_run_human}</span>
+            <span class="text-[10px] text-slate-400 block font-mono">${k.last_run_time || ''}</span>
+          </td>
+          <td class="py-3 px-4">
+            ${renderStatusBadge(k.status, k.failure_message)}
+          </td>
+          <td class="py-3 px-4 text-right space-x-1">
+            <button onclick="openInspectorModal('${k.account}', '${k.ref}')" class="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm">
+              Xem Log & Input ↗
+            </button>
+            <button onclick="checkSingleStatus('${k.account}', '${k.ref}')" class="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100" title="Kiểm tra lại trạng thái">
+              <i data-lucide="rotate-cw" class="w-3.5 h-3.5 inline"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    // ==================== INSPECTOR MODAL: INPUT, OUTPUT, VERSION & CODE ====================
+    let currentInspectorData = null;
+
+    async function openInspectorModal(account, ref, version = null) {
+      currentInspectedKernel = { account, ref, version };
+      document.getElementById('inspectorTitle').innerText = ref.split('/')[1] || ref;
+      document.getElementById('inspectorSubtitle').innerText = `@${account} • ${ref}`;
+      document.getElementById('inspectorStatusBadge').innerHTML = `<span class="text-slate-400 text-xs">Đang kiểm tra...</span>`;
+      document.getElementById('inspectorLogContent').innerText = "Đang tải dữ liệu, logs và phiên bản từ Kaggle API...";
+      document.getElementById('inspectorKaggleLink').href = `https://www.kaggle.com/code/${ref}${version ? '?version=' + version : ''}`;
+      
+      const verSelect = document.getElementById('inspectorVersionSelect');
+      if (verSelect) verSelect.innerHTML = `<option value="">Đang tải phiên bản...</option>`;
+      
+      document.getElementById('inspectorModal').classList.remove('hidden');
+      switchInspectorTab('output');
+      lucide.createIcons();
+
+      await refreshInspectorDetails(version);
+    }
+
+    async function onInspectorVersionChanged(newVersion) {
+      if (!currentInspectedKernel) return;
+      currentInspectedKernel.version = newVersion ? parseInt(newVersion) : null;
+      await refreshInspectorDetails(currentInspectedKernel.version);
+    }
+
+    async function refreshInspectorDetails(specificVersion = null) {
+      if (!currentInspectedKernel) return;
+      const { account, ref } = currentInspectedKernel;
+      const versionToFetch = (specificVersion !== null && specificVersion !== undefined) ? specificVersion : currentInspectedKernel.version;
+      
+      const icon = document.getElementById('inspectorRefreshIcon');
+      if (icon) icon.classList.add('animate-spin-custom');
+
+      try {
+        let url = `/api/kernel/details?account=${encodeURIComponent(account)}&ref=${encodeURIComponent(ref)}`;
+        if (versionToFetch) {
+          url += `&version=${encodeURIComponent(versionToFetch)}`;
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+        currentInspectorData = data;
+
+        if (icon) icon.classList.remove('animate-spin-custom');
+
+        if (!data.success) {
+          document.getElementById('inspectorLogContent').innerText = `Không thể lấy dữ liệu: ${data.message || 'Lỗi không xác định'}`;
+          return;
+        }
+
+        // Title and Kaggle direct link
+        document.getElementById('inspectorTitle').innerText = data.title || (ref.split('/')[1] || ref);
+        document.getElementById('inspectorKaggleLink').href = data.selected_url || data.url || `https://www.kaggle.com/code/${ref}`;
+
+        // Version Selector Dropdown
+        const verSelect = document.getElementById('inspectorVersionSelect');
+        if (verSelect) {
+          if (data.versions_list && data.versions_list.length > 0) {
+            verSelect.innerHTML = data.versions_list.map(v => 
+              `<option value="${v.version}" ${v.is_selected ? 'selected' : ''}>${v.label}</option>`
+            ).join('');
+          } else {
+            verSelect.innerHTML = `<option value="${data.current_version || 1}">Version ${data.current_version || 1} (Mới nhất)</option>`;
+          }
+        }
+
+        // Status badge
+        document.getElementById('inspectorStatusBadge').innerHTML = renderStatusBadge(data.status, data.failure_message);
+
+        // Hardware & Environment tags
+        const hw = data.hardware || {};
+        document.getElementById('inspectorHardwareTags').innerHTML = `
+          <span class="px-2.5 py-1 text-xs font-semibold rounded-md ${hw.gpu ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-slate-100 text-slate-600'}">Phần cứng: ${hw.gpu ? 'GPU (Đang bật)' : (hw.tpu ? 'TPU (Đang bật)' : 'CPU tiêu chuẩn')}</span>
+          <span class="px-2.5 py-1 text-xs font-medium rounded-md ${hw.internet ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-500'}">Internet: ${hw.internet ? 'Bật (Online)' : 'Tắt'}</span>
+          <span class="px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-700 rounded-md border border-slate-200">Ngôn ngữ: ${hw.language || 'Python'}</span>
+          <span class="px-2.5 py-1 text-xs font-medium bg-slate-100 text-slate-700 rounded-md border border-slate-200">Loại: ${hw.kernel_type || 'Notebook'}</span>
+          <span class="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 rounded-md border border-blue-200">Phiên bản đang xem: Version ${data.selected_version || data.current_version || 1}</span>
+        `;
+
+        // Output Log
+        const logText = (data.output && data.output.log) || "";
+        if (!logText.trim()) {
+          document.getElementById('inspectorLogContent').innerText = "[Chưa có log đầu ra nào cho phiên thực thi này hoặc notebook chưa chạy]";
+        } else {
+          document.getElementById('inspectorLogContent').innerText = logText;
+          const logEl = document.getElementById('inspectorLogContent');
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // Input Sources
+        const inputs = data.inputs || {};
+        const dsList = inputs.datasets || [];
+        const compList = inputs.competitions || [];
+        const kernelList = inputs.kernels || [];
+        const modelList = inputs.models || [];
+        const totalInputs = dsList.length + compList.length + kernelList.length + modelList.length;
+        document.getElementById('inspInputCountBadge').innerText = totalInputs;
+
+        // Datasets
+        const dsContainer = document.getElementById('inspectorInputDatasets');
+        if (dsList.length === 0) {
+          dsContainer.innerHTML = '<p class="p-3 text-slate-400">Không có dataset nào đính kèm.</p>';
+        } else {
+          dsContainer.innerHTML = dsList.map(d => `
+            <div class="p-2.5 flex items-center justify-between hover:bg-slate-50">
+              <span class="font-medium text-slate-800 font-mono">${d.name}</span>
+              <div class="flex items-center gap-2">
+                <button data-url="${d.url}" onclick="copyDatasetLink(this.dataset.url, this)" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-blue-600 transition-colors cursor-pointer shadow-sm" title="Sao chép link dataset">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i> <span>Copy Link</span>
+                </button>
+                <a href="${d.url}" target="_blank" class="text-blue-600 hover:underline text-xs font-medium">Mở Dataset ↗</a>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Competitions
+        const compContainer = document.getElementById('inspectorInputCompetitions');
+        if (compList.length === 0) {
+          compContainer.innerHTML = '<p class="p-3 text-slate-400">Không có cuộc thi nào liên kết.</p>';
+        } else {
+          compContainer.innerHTML = compList.map(c => `
+            <div class="p-2.5 flex items-center justify-between hover:bg-slate-50">
+              <span class="font-medium text-slate-800">${c.name}</span>
+              <a href="${c.url}" target="_blank" class="text-blue-600 hover:underline text-xs font-medium">Mở Cuộc thi ↗</a>
+            </div>
+          `).join('');
+        }
+
+        // Upstream Kernels
+        const kContainer = document.getElementById('inspectorInputKernels');
+        if (kernelList.length === 0) {
+          kContainer.innerHTML = '<p class="p-3 text-slate-400">Không dùng output từ notebook khác.</p>';
+        } else {
+          kContainer.innerHTML = kernelList.map(k => `
+            <div class="p-2.5 flex items-center justify-between hover:bg-slate-50">
+              <span class="font-medium text-slate-800 font-mono">${k.name}</span>
+              <a href="${k.url}" target="_blank" class="text-blue-600 hover:underline text-xs font-medium">Mở Notebook ↗</a>
+            </div>
+          `).join('');
+        }
+
+        // Models
+        const mContainer = document.getElementById('inspectorInputModels');
+        if (mContainer) {
+          if (modelList.length === 0) {
+            mContainer.innerHTML = '<p class="p-3 text-slate-400">Không có model nào đính kèm.</p>';
+          } else {
+            mContainer.innerHTML = modelList.map(m => `
+              <div class="p-2.5 flex items-center justify-between hover:bg-slate-50">
+                <span class="font-medium text-slate-800 font-mono">${m.name}</span>
+                <a href="${m.url}" target="_blank" class="text-blue-600 hover:underline text-xs font-medium">Mở Model ↗</a>
+              </div>
+            `).join('');
+          }
+        }
+
+        // Output Files
+        const files = (data.output && data.output.files) || [];
+        document.getElementById('inspFilesCountBadge').innerText = files.length;
+        const filesContainer = document.getElementById('inspectorFilesList');
+        if (files.length === 0) {
+          filesContainer.innerHTML = '<p class="p-4 text-slate-400 text-center">Chưa có tệp output nào được tạo ra từ phiên chạy này.</p>';
+        } else {
+          filesContainer.innerHTML = files.map(f => `
+            <div class="p-3 flex items-center justify-between hover:bg-slate-50">
+              <div class="flex items-center gap-2 overflow-hidden">
+                <i data-lucide="file" class="w-4 h-4 text-blue-500 flex-shrink-0"></i>
+                <div class="truncate">
+                  <span class="font-mono text-slate-800 font-medium block truncate">${f.file_name}</span>
+                  ${f.size ? `<span class="text-[10px] text-slate-400 font-mono">${f.size} ${f.creation_date ? '• ' + f.creation_date : ''}</span>` : ''}
+                </div>
+              </div>
+              <div class="flex-shrink-0">
+                ${f.url ? `<a href="${f.url}" target="_blank" class="px-2.5 py-1 text-xs font-semibold text-blue-600 hover:underline bg-blue-50 border border-blue-200 rounded-md">Mở / Tải ⬇</a>` : '<span class="text-slate-400 text-[11px]">Đã lưu trên Kaggle</span>'}
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Source Code Cells
+        const cells = (data.source_code && data.source_code.cells) || [];
+        document.getElementById('inspCodeCountBadge').innerText = cells.length;
+        currentCodeSearchTerm = '';
+        const searchInput = document.getElementById('codeSearchInput');
+        if (searchInput) searchInput.value = '';
+        currentCellFilterType = 'all';
+        allCellsCollapsed = false;
+        const toggleAllText = document.getElementById('toggleAllCellsText');
+        if (toggleAllText) toggleAllText.innerText = 'Thu gọn hết';
+        
+        renderNotebookCellsList();
+
+        lucide.createIcons();
+      } catch (err) {
+        if (icon) icon.classList.remove('animate-spin-custom');
+        document.getElementById('inspectorLogContent').innerText = "Lỗi kết nối khi tải chi tiết notebook: " + err.message;
+      }
+    }
+
+    let currentCellFilterType = 'all';
+    let currentCodeSearchTerm = '';
+    let allCellsCollapsed = false;
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function highlightPythonCode(src) {
+      if (typeof hljs !== 'undefined' && hljs.highlight) {
+        try {
+          return hljs.highlight(src || '', { language: 'python', ignoreIllegals: true }).value;
+        } catch (e) {
+          return escapeHtml(src || '');
+        }
+      }
+      return escapeHtml(src || '');
+    }
+
+    function renderMarkdownContent(src) {
+      if (typeof marked !== 'undefined' && marked.parse) {
+        try {
+          return marked.parse(src || '');
+        } catch (e) {
+          return `<div class="whitespace-pre-wrap font-sans">${escapeHtml(src || '')}</div>`;
+        }
+      }
+      return `<div class="whitespace-pre-wrap font-sans">${escapeHtml(src || '')}</div>`;
+    }
+
+    function renderNotebookCellsList() {
+      if (!currentInspectorData || !currentInspectorData.source_code) return;
+      const cells = currentInspectorData.source_code.cells || [];
+      const codeContainer = document.getElementById('inspectorCodeCellsList');
+      const statsBadge = document.getElementById('codeSearchStatsBadge');
+      if (!codeContainer) return;
+      
+      const q = (currentCodeSearchTerm || '').toLowerCase().trim();
+      const typeFilter = currentCellFilterType;
+
+      const filtered = cells.filter(c => {
+        if (typeFilter !== 'all' && c.type !== typeFilter) return false;
+        if (q && !(c.source || '').toLowerCase().includes(q)) return false;
+        return true;
+      });
+
+      if (statsBadge) {
+        if (q || typeFilter !== 'all') {
+          statsBadge.innerText = `Hiển thị ${filtered.length}/${cells.length} cell`;
+        } else {
+          statsBadge.innerText = `Tổng số: ${cells.length} cell`;
+        }
+      }
+
+      if (filtered.length === 0) {
+        codeContainer.innerHTML = `
+          <div class="p-8 text-center bg-white border border-slate-200 rounded-xl">
+            <p class="text-sm font-semibold text-slate-700 mb-1">Không tìm thấy cell nào khớp từ khóa</p>
+            <p class="text-xs text-slate-400">Hãy thử từ khóa tìm kiếm khác hoặc chuyển bộ lọc về "Tất cả".</p>
+          </div>
+        `;
+        return;
+      }
+
+      codeContainer.innerHTML = filtered.map(c => {
+        const src = c.source || '';
+        const lines = src.split('\n');
+        const lineCount = lines.length;
+        const isMarkdown = c.type === 'markdown';
+
+        if (isMarkdown) {
+          const mdHtml = renderMarkdownContent(src);
+          return `
+            <div class="notebook-cell group border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm" data-cell-index="${c.index}">
+              <div class="px-3.5 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs select-none">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    [Doc ${c.index}]
+                  </span>
+                  <span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600">
+                    <i data-lucide="file-text" class="w-3.5 h-3.5 text-amber-600"></i> Markdown (Ghi chú)
+                  </span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <button onclick="toggleCellCollapse(${c.index})" class="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200 cursor-pointer" title="Thu gọn / Mở rộng">
+                    <i data-lucide="chevron-up" id="cell-icon-${c.index}" class="w-3.5 h-3.5"></i>
+                  </button>
+                  <button onclick="copySingleCellCode(${c.index})" id="copy-btn-${c.index}" class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-blue-600 shadow-sm transition-colors cursor-pointer" title="Sao chép nội dung cell">
+                    <i data-lucide="copy" class="w-3 h-3"></i> <span>Copy</span>
+                  </button>
+                </div>
+              </div>
+              <div id="cell-body-${c.index}" class="p-4 bg-white border-l-4 border-l-amber-400 cell-markdown-body overflow-x-auto text-xs leading-relaxed text-slate-800">
+                ${mdHtml}
+              </div>
+            </div>
+          `;
+        }
+
+        // Code cell with Python syntax highlighting and line numbers
+        const highlighted = highlightPythonCode(src);
+        const lineNumbers = Array.from({ length: Math.max(1, lineCount) }, (_, i) => i + 1).join('\n');
+
+        return `
+          <div class="notebook-cell group border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm" data-cell-index="${c.index}">
+            <div class="px-3.5 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs select-none">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="inline-flex items-center px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                  In [${c.index}]
+                </span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Python 3
+                </span>
+                <span class="text-[11px] text-slate-400 font-mono">
+                  • ${lineCount} dòng
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button onclick="toggleCellCollapse(${c.index})" class="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-200 cursor-pointer" title="Thu gọn / Mở rộng">
+                  <i data-lucide="chevron-up" id="cell-icon-${c.index}" class="w-3.5 h-3.5"></i>
+                </button>
+                <button onclick="copySingleCellCode(${c.index})" id="copy-btn-${c.index}" class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-blue-600 shadow-sm transition-colors cursor-pointer" title="Sao chép cell này">
+                  <i data-lucide="copy" class="w-3 h-3"></i> <span>Copy</span>
+                </button>
+              </div>
+            </div>
+            <!-- Code Body with Gutter -->
+            <div id="cell-body-${c.index}" class="flex items-stretch font-mono text-[12px] overflow-x-auto bg-white border-l-4 border-l-blue-500">
+              <div class="code-gutter py-3 px-3 bg-slate-50 border-r border-slate-200 text-right text-slate-400 font-mono text-[11px] leading-[1.6] select-none flex-shrink-0">
+                <pre class="m-0">${lineNumbers}</pre>
+              </div>
+              <pre class="py-3 px-4 m-0 font-mono text-[12px] leading-[1.6] text-slate-800 whitespace-pre overflow-visible flex-1"><code class="hljs language-python">${highlighted}</code></pre>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function filterNotebookCells(searchTerm) {
+      currentCodeSearchTerm = searchTerm;
+      renderNotebookCellsList();
+    }
+
+    function filterCellType(type) {
+      currentCellFilterType = type;
+      ['all', 'code', 'md'].forEach(t => {
+        const btn = document.getElementById(`btn-cell-filter-${t}`);
+        if (!btn) return;
+        const matches = (t === 'all' && type === 'all') || (t === 'code' && type === 'code') || (t === 'md' && type === 'markdown');
+        if (matches) {
+          btn.className = 'px-2 py-1 rounded font-semibold text-blue-600 bg-blue-50 transition-colors cursor-pointer';
+        } else {
+          btn.className = 'px-2 py-1 rounded font-medium text-slate-600 hover:text-slate-900 transition-colors cursor-pointer';
+        }
+      });
+      renderNotebookCellsList();
+    }
+
+    function toggleCellCollapse(cellIndex) {
+      const body = document.getElementById(`cell-body-${cellIndex}`);
+      const icon = document.getElementById(`cell-icon-${cellIndex}`);
+      if (!body) return;
+      if (body.classList.contains('hidden')) {
+        body.classList.remove('hidden');
+        if (icon) icon.setAttribute('data-lucide', 'chevron-up');
+      } else {
+        body.classList.add('hidden');
+        if (icon) icon.setAttribute('data-lucide', 'chevron-down');
+      }
+      lucide.createIcons();
+    }
+
+    function toggleAllCells() {
+      allCellsCollapsed = !allCellsCollapsed;
+      const bodies = document.querySelectorAll('[id^="cell-body-"]');
+      const icons = document.querySelectorAll('[id^="cell-icon-"]');
+      const label = document.getElementById('toggleAllCellsText');
+
+      bodies.forEach(b => {
+        if (allCellsCollapsed) {
+          b.classList.add('hidden');
+        } else {
+          b.classList.remove('hidden');
+        }
+      });
+
+      icons.forEach(ic => {
+        ic.setAttribute('data-lucide', allCellsCollapsed ? 'chevron-down' : 'chevron-up');
+      });
+
+      if (label) {
+        label.innerText = allCellsCollapsed ? 'Mở rộng hết' : 'Thu gọn hết';
+      }
+      lucide.createIcons();
+    }
+
+    function copySingleCellCode(cellIndex) {
+      if (!currentInspectorData || !currentInspectorData.source_code) return;
+      const cell = (currentInspectorData.source_code.cells || []).find(c => c.index === cellIndex);
+      if (!cell) return;
+      copyToClipboard(cell.source || '', `Đã sao chép cell [${cell.index}]!`);
+      const btn = document.getElementById(`copy-btn-${cellIndex}`);
+      if (btn) {
+        const oldHtml = btn.innerHTML;
+        btn.innerHTML = `<i data-lucide="check" class="w-3 h-3 text-emerald-600"></i> <span class="text-emerald-600 font-semibold">Đã copy!</span>`;
+        lucide.createIcons();
+        setTimeout(() => {
+          btn.innerHTML = oldHtml;
+          lucide.createIcons();
+        }, 1800);
+      }
+    }
+
+    function copyAllNotebookCode() {
+      if (!currentInspectorData || !currentInspectorData.source_code || !currentInspectorData.source_code.cells) {
+        showToast('Không có mã nguồn để sao chép', 'error');
+        return;
+      }
+      const fullCode = currentInspectorData.source_code.cells.map(c => {
+        if (c.type === 'markdown') {
+          return `"""\n[Markdown Cell ${c.index}]\n${c.source}\n"""`;
+        }
+        return `# [In ${c.index}]\n${c.source}`;
+      }).join('\n\n# ' + '='.repeat(60) + '\n\n');
+      copyToClipboard(fullCode, 'Đã sao chép toàn bộ mã nguồn notebook!');
+    }
+
+    function downloadNotebookPy() {
+      if (!currentInspectorData || !currentInspectorData.source_code) {
+        showToast('Không có mã nguồn để tải', 'error');
+        return;
+      }
+      const cells = currentInspectorData.source_code.cells || [];
+      const pyCode = cells.map(c => {
+        if (c.type === 'markdown') {
+          return `"""\n[Markdown Cell ${c.index}]\n${c.source}\n"""`;
+        }
+        return `# [In ${c.index}]\n${c.source}`;
+      }).join('\n\n# ' + '='.repeat(60) + '\n\n');
+
+      const refClean = (currentInspectorData.ref || 'notebook').replace(/[\/\\?%*:|"<>]/g, '_');
+      const ver = currentInspectorData.selected_version || currentInspectorData.current_version || 1;
+      const blob = new Blob([pyCode], { type: 'text/x-python;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${refClean}_v${ver}.py`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Đã tải xuống file Python ${refClean}_v${ver}.py!`, 'success');
+    }
+
+    function copyInspectorLog() {
+      const logContent = document.getElementById('inspectorLogContent').innerText;
+      copyToClipboard(logContent, 'Đã sao chép output log vào clipboard!');
+    }
+
+    function downloadInspectorLog() {
+      if (!currentInspectorData) return;
+      const logContent = document.getElementById('inspectorLogContent').innerText;
+      const refClean = (currentInspectorData.ref || 'notebook').replace(/[\/\\?%*:|"<>]/g, '_');
+      const ver = currentInspectorData.selected_version || currentInspectorData.current_version || 1;
+      const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${refClean}_v${ver}_log.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Đã tải xuống file log (v${ver})!`, 'success');
+    }
+
+    function switchInspectorTab(tab) {
+      ['output', 'input', 'files', 'code'].forEach(t => {
+        const view = document.getElementById(`insp-view-${t}`);
+        const btn = document.getElementById(`btn-insp-${t}`);
+        if (!view || !btn) return;
+        if (t === tab) {
+          view.classList.remove('hidden');
+          btn.className = 'px-3 py-2 text-xs font-semibold text-blue-600 border-b-2 border-blue-600 flex items-center gap-1.5 whitespace-nowrap cursor-pointer';
+        } else {
+          view.classList.add('hidden');
+          btn.className = 'px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 border-b-2 border-transparent flex items-center gap-1.5 whitespace-nowrap cursor-pointer';
+        }
+      });
+      lucide.createIcons();
+    }
+
+    function closeInspectorModal() {
+      document.getElementById('inspectorModal').classList.add('hidden');
+      currentInspectedKernel = null;
+    }
+
+    // Clipboard Helper with Fallback
+    function copyToClipboard(text, msg = 'Đã sao chép vào Clipboard!') {
+      if (!text) return;
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast(msg, 'success');
+        }).catch(() => fallbackCopy(text, msg));
+      } else {
+        fallbackCopy(text, msg);
+      }
+    }
+
+    function fallbackCopy(text, msg) {
+      try {
+        const input = document.createElement('textarea');
+        input.value = text;
+        input.style.position = 'fixed';
+        input.style.left = '-9999px';
+        document.body.appendChild(input);
+        input.focus();
+        input.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(input);
+        if (ok) {
+          showToast(msg, 'success');
+        } else {
+          prompt('Nhấn Ctrl+C để sao chép liên kết:', text);
+        }
+      } catch (err) {
+        prompt('Nhấn Ctrl+C để sao chép liên kết:', text);
+      }
+    }
+
+    function copyDatasetLink(url, btnElement = null) {
+      if (!url) {
+        showToast('Không tìm thấy link dataset!', 'error');
+        return;
+      }
+      copyToClipboard(url, 'Đã sao chép link dataset vào Clipboard!');
+      if (btnElement) {
+        const hasTextSpan = btnElement.querySelector('span');
+        const origHTML = btnElement.innerHTML;
+        if (hasTextSpan) {
+          btnElement.classList.add('text-emerald-700', 'border-emerald-300', 'bg-emerald-50');
+          btnElement.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i><span class="text-emerald-700">Đã chép!</span>`;
+        } else {
+          btnElement.classList.add('text-emerald-600');
+          btnElement.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i>`;
+        }
+        lucide.createIcons();
+        setTimeout(() => {
+          btnElement.classList.remove('text-emerald-700', 'border-emerald-300', 'bg-emerald-50', 'text-emerald-600');
+          btnElement.innerHTML = origHTML;
+          lucide.createIcons();
+        }, 1800);
+      }
+    }
+
+    function copyDatasetRef(ref, btnElement = null) {
+      if (!ref) return;
+      copyToClipboard(ref, `Đã sao chép: ${ref}`);
+      if (btnElement) {
+        const origHTML = btnElement.innerHTML;
+        btnElement.innerHTML = `<i data-lucide="check" class="w-2.5 h-2.5 text-emerald-600"></i> <span class="text-emerald-600">đã chép</span>`;
+        lucide.createIcons();
+        setTimeout(() => {
+          btnElement.innerHTML = origHTML;
+          lucide.createIcons();
+        }, 1800);
+      }
+    }
+
+    function copyInspectorLog() {
+      const text = document.getElementById('inspectorLogContent').innerText;
+      copyToClipboard(text, 'Đã sao chép Log vào Clipboard!');
+    }
+
+    function downloadInspectorLog() {
+      const text = document.getElementById('inspectorLogContent').innerText;
+      const ref = currentInspectedKernel ? currentInspectedKernel.ref.replace('/', '_') : 'notebook';
+      const blob = new Blob([text], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${ref}_log.txt`;
+      a.click();
+    }
+
+    // ==================== TAB 6: DATASETS & TAB 7: COMPS ====================
+    function renderDatasetsTab() {
+      const tbody = document.getElementById('datasetsTableBody');
+      const accountFilter = document.getElementById('datasetAccountSelect').value;
+      const search = (document.getElementById('datasetSearchInput').value || '').toLowerCase().trim();
+
+      let filtered = datasetsData;
+      if (accountFilter) filtered = filtered.filter(d => d.account === accountFilter);
+      if (search) filtered = filtered.filter(d => d.title.toLowerCase().includes(search) || d.ref.toLowerCase().includes(search) || d.account.toLowerCase().includes(search));
+
+      const countBadge = document.getElementById('datasetFilterCountBadge');
+      if (countBadge) countBadge.innerText = `${filtered.length} bộ`;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-400">Không tìm thấy dataset nào.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(d => `
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="py-3 px-4">
+            <div class="flex items-center gap-1.5">
+              <a href="${d.url}" target="_blank" class="font-bold text-slate-900 hover:text-blue-600 block">${d.title}</a>
+              <button data-url="${d.url}" onclick="copyDatasetLink(this.dataset.url, this)" class="text-slate-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50 transition-colors inline-flex items-center cursor-pointer" title="Sao chép link dataset">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] text-slate-400 font-mono mt-0.5">
+              <span>${d.ref}</span>
+              <button data-ref="${d.ref}" onclick="copyDatasetRef(this.dataset.ref, this)" class="text-[10px] text-slate-400 hover:text-blue-600 hover:underline inline-flex items-center gap-0.5 cursor-pointer" title="Sao chép slug ref (${d.ref})">
+                <i data-lucide="copy" class="w-2.5 h-2.5"></i> ref
+              </button>
+            </div>
+          </td>
+          <td class="py-3 px-4 font-mono text-blue-600 font-medium">@${d.account}</td>
+          <td class="py-3 px-4 font-semibold text-slate-700">${d.size_human}</td>
+          <td class="py-3 px-4 text-slate-600">${d.download_count} lượt</td>
+          <td class="py-3 px-4 text-slate-600">${d.last_updated_human}</td>
+          <td class="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
+            <button data-url="${d.url}" onclick="copyDatasetLink(this.dataset.url, this)" class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-blue-600 hover:border-blue-300 shadow-sm transition-all cursor-pointer" title="Sao chép link dataset vào clipboard">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              <span>Copy Link</span>
+            </button>
+            <a href="${d.url}" target="_blank" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors" title="Mở dataset trên Kaggle">
+              <span>Xem Kaggle</span>
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+            </a>
+          </td>
+        </tr>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    async function syncDatasetsRealtime() {
+      const btn = document.getElementById('btnRealtimeSyncDatasets');
+      const icon = document.getElementById('iconSyncDatasets');
+      const text = document.getElementById('textSyncDatasets');
+      const selectedAcc = document.getElementById('datasetAccountSelect').value;
+
+      if (icon) icon.classList.add('animate-spin-custom');
+      if (btn) btn.disabled = true;
+      if (text) text.innerText = 'Đang quét Kaggle...';
+
+      const accLabel = selectedAcc ? `@${selectedAcc}` : 'tất cả tài khoản';
+      showToast(`Đang kết nối Kaggle API để quét dataset mới nhất cho ${accLabel}...`, 'info');
+
+      try {
+        const url = selectedAcc ? `/api/datasets/sync?account=${encodeURIComponent(selectedAcc)}` : '/api/datasets/sync';
+        const res = await fetch(url, { method: 'POST' });
+        const json = await res.json();
+
+        if (json.success) {
+          await fetchDatasets();
+          renderDatasetsTab();
+
+          // Update header / badge counts
+          const totalCount = json.total || datasetsData.length;
+          const statEl = document.getElementById('statTotalDatasets');
+          const badgeEl = document.getElementById('tabBadgeDatasets');
+          if (statEl) statEl.innerText = totalCount;
+          if (badgeEl) badgeEl.innerText = totalCount;
+
+          showToast(json.message || `Đã cập nhật real-time ${json.count} dataset thành công!`, 'success');
+        } else {
+          showToast('Lỗi khi quét dataset: ' + (json.message || 'Không rõ'), 'error');
+        }
+      } catch (e) {
+        showToast('Không thể kết nối đến máy chủ: ' + e.message, 'error');
+      } finally {
+        if (icon) icon.classList.remove('animate-spin-custom');
+        if (btn) btn.disabled = false;
+        if (text) text.innerText = 'Quét Real-time Kaggle';
+        lucide.createIcons();
+      }
+    }
+
+    function renderCompetitionsTab() {
+      const container = document.getElementById('competitionsList');
+      if (competitionsData.length === 0) {
+        container.innerHTML = '<div class="col-span-full py-8 text-center text-slate-400">Chưa có tài khoản nào tham gia cuộc thi nào.</div>';
+        return;
+      }
+
+      container.innerHTML = competitionsData.map(c => `
+        <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors">
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 mb-1">${c.category || 'Featured'}</span>
+              <h3 class="text-sm font-bold text-slate-900 leading-snug">
+                <a href="${c.url}" target="_blank" class="hover:text-blue-600">${c.title}</a>
+              </h3>
+            </div>
+            <span class="px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-emerald-600 flex-shrink-0">${c.reward || 'Knowledge'}</span>
+          </div>
+          <div class="flex items-center gap-4 text-xs text-slate-500 mt-3 pt-3 border-t border-slate-200">
+            <div>Tài khoản: <strong class="text-blue-600 font-mono">@${c.account}</strong></div>
+            <div>Đội thi: <strong class="text-slate-800">${c.team_count}</strong></div>
+            <div>Hạn chót: <strong class="text-slate-800">${c.deadline_human}</strong></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ==================== TAB 8: CREDENTIALS ====================
+    async function loadCredentialsInfo() {
+      try {
+        const res = await fetch('/api/credentials');
+        const list = await res.json();
+        const tbody = document.getElementById('credentialsTableBody');
+        tbody.innerHTML = list.map(c => `
+          <tr class="hover:bg-slate-50 transition-colors">
+            <td class="py-3 px-4 font-mono font-medium text-slate-800">${c.file}</td>
+            <td class="py-3 px-4 font-mono text-blue-600">@${c.username}</td>
+            <td class="py-3 px-4 font-mono text-slate-500 text-[11px]">${c.key_masked}</td>
+            <td class="py-3 px-4">
+              ${c.valid_format 
+                ? '<span class="inline-flex items-center gap-1 text-emerald-600 font-medium"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Hợp lệ</span>'
+                : '<span class="inline-flex items-center gap-1 text-red-600 font-medium"><span class="w-2 h-2 rounded-full bg-red-500"></span> ' + (c.error || 'Thiếu key') + '</span>'
+              }
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        console.error('Error credentials:', e);
+      }
+    }
+
+    function renderAccountsTab(query = '') {
+      const tbody = document.getElementById('accountsTableBody');
+      const q = (query || '').toLowerCase().trim();
+      const filtered = accountsData.filter(a => 
+        !q || a.username.toLowerCase().includes(q) || (a.display_name || '').toLowerCase().includes(q) || (a.file || '').toLowerCase().includes(q)
+      );
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-400">Không tìm thấy tài khoản.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(acc => `
+        <tr class="hover:bg-slate-50 transition-colors">
+          <td class="py-3 px-4">
+            <div class="flex items-center gap-3">
+              <img src="${acc.avatar_url || ''}" class="w-8 h-8 rounded-full border border-slate-200 object-cover bg-white" onerror="this.src='https://storage.googleapis.com/kaggle-avatars/thumbnails/default-thumb.png'">
+              <div>
+                <span class="font-bold text-slate-900 block">${acc.display_name || acc.username}</span>
+                <span class="text-[11px] text-blue-600 font-mono">@${acc.username}</span>
+              </div>
+            </div>
+          </td>
+          <td class="py-3 px-4 font-mono text-slate-600">${acc.file}</td>
+          <td class="py-3 px-4">
+            ${acc.valid 
+              ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Hoạt động</span>'
+              : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-200"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> Lỗi Key</span>'
+            }
+          </td>
+          <td class="py-3 px-4 text-center font-semibold text-slate-800">${acc.kernels_count}</td>
+          <td class="py-3 px-4 text-center font-semibold text-slate-800">${acc.datasets_count}</td>
+          <td class="py-3 px-4 text-center font-semibold text-slate-800">${acc.competitions_count}</td>
+          <td class="py-3 px-4 text-right space-x-2">
+            <button onclick="openAccountModal('${acc.username}')" class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50">Chi tiết</button>
+            <a href="https://www.kaggle.com/${acc.username}" target="_blank" class="px-2.5 py-1 text-xs font-medium text-blue-600 hover:text-blue-800">Kaggle ↗</a>
+          </td>
+        </tr>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    async function openAccountModal(username) {
+      try {
+        const res = await fetch(`/api/account/${username}`);
+        const acc = await res.json();
+        document.getElementById('modalName').innerText = acc.display_name || acc.username;
+        document.getElementById('modalUser').innerText = `@${acc.username} (${acc.file})`;
+        document.getElementById('modalAvatar').src = acc.avatar_url || 'https://storage.googleapis.com/kaggle-avatars/thumbnails/default-thumb.png';
+        document.getElementById('modalKernelsCount').innerText = acc.kernels_count;
+        document.getElementById('modalDatasetsCount').innerText = acc.datasets_count;
+        document.getElementById('modalCompsCount').innerText = acc.competitions_count;
+        document.getElementById('modalKaggleProfileLink').href = `https://www.kaggle.com/${acc.username}`;
+
+        if (acc.bio) {
+          document.getElementById('modalBioContainer').classList.remove('hidden');
+          document.getElementById('modalBio').innerText = acc.bio;
+        } else {
+          document.getElementById('modalBioContainer').classList.add('hidden');
+        }
+
+        const kList = document.getElementById('modalKernelsList');
+        kList.innerHTML = (!acc.kernels || acc.kernels.length === 0)
+          ? '<p class="text-xs text-slate-400 p-3 text-center">Không có notebook nào.</p>'
+          : acc.kernels.map(k => `
+            <div class="p-2.5 flex items-center justify-between gap-2 hover:bg-slate-50">
+              <div class="truncate">
+                <a href="javascript:void(0)" onclick="openInspectorModal('${acc.username}', '${k.ref}')" class="font-medium text-slate-900 hover:text-blue-600 block truncate">${k.title}</a>
+                <span class="text-[10px] text-slate-400">${k.last_run_human}</span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                ${renderStatusBadge(k.status)}
+                <button onclick="openInspectorModal('${acc.username}', '${k.ref}')" class="px-2 py-0.5 text-[10px] text-blue-600 border border-blue-200 rounded hover:bg-blue-50">Log</button>
+              </div>
+            </div>
+          `).join('');
+
+        const dList = document.getElementById('modalDatasetsList');
+        dList.innerHTML = (!acc.datasets || acc.datasets.length === 0)
+          ? '<p class="text-xs text-slate-400 p-3 text-center">Không có dataset nào.</p>'
+          : acc.datasets.map(d => `
+            <div class="p-2.5 flex items-center justify-between gap-2 hover:bg-slate-50">
+              <div class="truncate">
+                <a href="${d.url}" target="_blank" class="font-medium text-slate-900 hover:text-blue-600 block truncate">${d.title}</a>
+                <span class="text-[10px] text-slate-400">${d.size_human} • ${d.last_updated_human}</span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button data-url="${d.url}" onclick="copyDatasetLink(this.dataset.url, this)" class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 hover:text-blue-600 transition-colors cursor-pointer" title="Sao chép link dataset">
+                  <i data-lucide="copy" class="w-3 h-3"></i> <span>Copy</span>
+                </button>
+                <a href="${d.url}" target="_blank" class="text-[11px] text-blue-600 hover:underline">Xem ↗</a>
+              </div>
+            </div>
+          `).join('');
+
+        document.getElementById('accountModal').classList.remove('hidden');
+        lucide.createIcons();
+      } catch (e) {
+        showToast('Không thể tải chi tiết tài khoản', 'error');
+      }
+    }
+
+    function closeAccountModal() {
+      document.getElementById('accountModal').classList.add('hidden');
+    }
+
+    async function checkSingleStatus(account, ref) {
+      showToast(`Đang kiểm tra trạng thái ${ref.split('/')[1] || ref}...`, 'info');
+      try {
+        const res = await fetch(`/api/kernel/status?account=${encodeURIComponent(account)}&ref=${encodeURIComponent(ref)}`);
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Trạng thái: ${data.status}`, 'success');
+          const k = kernelsData.find(item => item.ref === ref);
+          if (k) {
+            k.status = data.status;
+            k.failure_message = data.failure_message;
+          }
+          renderKernelsTab();
+          renderOverviewTab();
+        } else {
+          showToast(`Lỗi: ${data.message}`, 'error');
+        }
+      } catch (err) {
+        showToast(`Không thể kết nối máy chủ`, 'error');
+      }
+    }
+
+    async function triggerManualRefresh() {
+      const icon = document.getElementById('refreshIcon');
+      icon.classList.add('animate-spin-custom');
+      showToast('Bắt đầu đồng bộ dữ liệu từ Kaggle API...', 'info');
+
+      try {
+        const res = await fetch('/api/refresh', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          pollRefreshStatus();
+        } else {
+          showToast(data.message, 'error');
+          icon.classList.remove('animate-spin-custom');
+        }
+      } catch (err) {
+        showToast('Lỗi gửi lệnh làm mới', 'error');
+        icon.classList.remove('animate-spin-custom');
+      }
+    }
+
+    function pollRefreshStatus() {
+      const banner = document.getElementById('refreshBanner');
+      const bannerText = document.getElementById('refreshBannerText');
+      banner.classList.remove('hidden');
+
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/refresh/status');
+          const data = await res.json();
+          if (data.is_refreshing) {
+            bannerText.innerText = data.progress || 'Đang cập nhật...';
+          } else {
+            clearInterval(interval);
+            banner.classList.add('hidden');
+            document.getElementById('refreshIcon').classList.remove('animate-spin-custom');
+            showToast('Đồng bộ dữ liệu thành công!', 'success');
+            loadData();
+            if (currentTab === 'quotas') renderQuotasTab();
+          }
+        } catch (e) {
+          clearInterval(interval);
+          banner.classList.add('hidden');
+          document.getElementById('refreshIcon').classList.remove('animate-spin-custom');
+        }
+      }, 1500);
+    }
+
+    function changeAutoRefresh(seconds) {
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      const s = parseInt(seconds);
+      if (s > 0) {
+        autoRefreshTimer = setInterval(() => {
+          loadData();
+          if (currentTab === 'running') renderRunningTab();
+        }, s * 1000);
+        showToast(`Tự động cập nhật mỗi ${s} giây`, 'info');
+      } else {
+        showToast('Đã tắt tự động làm mới', 'info');
+      }
+    }
+
+    function handleGlobalSearch(val) {
+      if (!val) return;
+      if (currentTab === 'accounts') {
+        renderAccountsTab(val);
+      } else if (currentTab === 'datasets') {
+        document.getElementById('datasetSearchInput').value = val;
+        renderDatasetsTab();
+      } else {
+        switchTab('kernels');
+        document.getElementById('kernelSearchInput').value = val;
+        renderKernelsTab();
+      }
+    }
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeInspectorModal();
+        closeAccountModal();
+        closeQuotaModal();
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      loadData();
+      changeAutoRefresh(60);
+    });
+  </script>
+</body>
+</html>
