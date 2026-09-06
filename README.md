@@ -178,39 +178,37 @@ Chưa gắn license mặc định. Chỉ thêm license sau khi xác định rõ 
   <br />
   <sub>FastAPI · Kaggle SDK · Real-time quota monitoring</sub>
 </p>
+<div align="center">
 
-<table align="center">
-  <tr>
-    <td align="center" valign="middle" width="220">
-      <a href="https://github.com/Kietnehi">
-        <img src="https://github.com/Kietnehi.png" width="112" alt="Trương Phú Kiệt" />
-      </a>
-      <br />
-      <br />
-      <strong><a href="https://github.com/Kietnehi">Trương Phú Kiệt</a></strong>
-      <br />
-      <sub>AI Engineer · Project Owner</sub>
-      <br />
-      <br />
-      <a href="https://github.com/Kietnehi">
-        <img src="https://img.shields.io/badge/GitHub-Profile-181717?style=flat-square&logo=github&logoColor=white" alt="View Kietnehi GitHub profile" />
-      </a>
-    </td>
-    <td align="center" valign="middle" width="460">
-      <a href="https://github.com/Kietnehi">
-        <img src="https://github-readme-stats.vercel.app/api?username=Kietnehi&show_icons=true&hide_title=true&hide=issues,contribs,prs&rank_icon=github&hide_border=true&theme=transparent&bg_color=00000000&title_color=0F172A&text_color=475569&icon_color=2563EB" width="400" alt="Kietnehi's GitHub stats" />
-      </a>
-      <br />
-      <br />
-      <a href="https://github.com/Kietnehi">
-        <img src="https://img.shields.io/github/followers/Kietnehi?style=flat-square&label=Followers" alt="Kietnehi followers" />
-      </a>
-      <a href="https://github.com/Kietnehi/Dashboard-Kaggle">
-        <img src="https://img.shields.io/github/stars/Kietnehi/Dashboard-Kaggle?style=flat-square&label=Project%20Stars&color=F59E0B" alt="Dashboard Kaggle stars" />
-      </a>
-    </td>
-  </tr>
-</table>
+
+
+<p align="center">
+  <a href="https://github.com/Kietnehi">
+    <img src="https://github.com/Kietnehi.png" width="140" height="140" style="border-radius: 50%; border: 4px solid #A371F7;" alt="Avatar Truong Phu Kiet"/>
+  </a>
+</p>
+
+<h3>🚀 Truong Phu Kiet</h3>
+
+<a href="https://github.com/Kietnehi">
+  <img src="https://readme-typing-svg.herokuapp.com?font=JetBrains+Mono&weight=500&size=22&pause=800&color=36BCF7&center=true&vCenter=true&width=500&lines=Welcome+to+my+GitHub!;I'm+an+AI+Lover;AI+Research+Enthusiast;Building+All+To+PDF" alt="Typing SVG" />
+</a>
+
+<br/><br/>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/SGU-Sai_Gon_University-0056D2?style=flat-square&logo=google-scholar&logoColor=white" alt="SGU"/>
+  <img src="https://img.shields.io/badge/Base-Ho_Chi_Minh_City-FF4B4B?style=flat-square&logo=google-maps&logoColor=white" alt="HCMC"/>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Kietnehi?tab=followers">
+    <img src="https://img.shields.io/github/followers/Kietnehi?label=Followers&style=flat-square&logo=github"/>
+  </a>
+  <a href="https://github.com/Kietnehi">
+    <img src="https://img.shields.io/github/stars/Kietnehi?label=Stars&style=flat-square&logo=github"/>
+  </a>
+</p>
 <p align="center">
   <img
     src="https://quotes-github-readme.vercel.app/api?type=horizontal&amp;theme=dark"
