@@ -312,12 +312,72 @@ class KaggleMonitorService:
         self._quota_write_lock = threading.Lock()
 
     def extract_running_from_data(self):
-        running = []
-        for k in self.data.get("all_kernels", []):
-            st = (k.get("status") or "").upper()
-            if st in ["RUNNING", "RUNNING_INTERACTIVE", "QUEUED"]:
-                running.append(k)
-        return running
+        running_by_identity = {}
+        sources = [self.data.get("all_kernels", [])]
+        sources.extend(
+            account.get("kernels", [])
+            for account in self.data.get("accounts", [])
+        )
+        for source in sources:
+            for kernel in source or []:
+                if kernel.get("ref") and not kernel.get("owner"):
+                    kernel["owner"] = _kernel_owner(kernel.get("ref"), kernel.get("account", ""))
+                status = str(kernel.get("status") or "").upper()
+                if status in ACTIVE_KERNEL_STATUSES:
+                    identity = _kernel_identity(kernel.get("account"), kernel.get("ref"))
+                    running_by_identity.setdefault(identity, kernel)
+        return list(running_by_identity.values())
+
+    def persist_live_kernel(self, live_kernel):
+        """Keep a newly discovered account-scoped live record in the cache."""
+        if not isinstance(live_kernel, dict):
+            return
+        account = live_kernel.get("account")
+        ref = live_kernel.get("ref")
+        if not account or not ref:
+            return
+        identity = _kernel_identity(account, ref)
+        fields = (
+            "account", "owner", "ref", "title", "url", "status",
+            "failure_message", "enable_gpu", "enable_tpu", "enable_internet",
+            "version_number", "last_run_time", "last_run_human",
+        )
+
+        def merge(target):
+            for field in fields:
+                if field in live_kernel:
+                    target[field] = live_kernel[field]
+
+        global_record = next(
+            (
+                kernel for kernel in self.data.setdefault("all_kernels", [])
+                if _kernel_identity(kernel.get("account"), kernel.get("ref")) == identity
+            ),
+            None,
+        )
+        if global_record is None:
+            self.data["all_kernels"].append(dict(live_kernel))
+        else:
+            merge(global_record)
+
+        for account_data in self.data.get("accounts", []):
+            if account_data.get("username") != account:
+                continue
+            account_record = next(
+                (
+                    kernel for kernel in account_data.get("kernels", [])
+                    if _kernel_identity(kernel.get("account"), kernel.get("ref")) == identity
+                ),
+                None,
+            )
+            if account_record is None:
+                account_data.setdefault("kernels", []).append(dict(live_kernel))
+            else:
+                merge(account_record)
+            account_data["kernels_count"] = len(account_data.get("kernels", []))
+            break
+        if "summary" in self.data:
+            self.data["summary"]["total_kernels"] = len(self.data.get("all_kernels", []))
 
     def get_running_fast(self):
         return self.running_cache
@@ -530,6 +590,7 @@ class KaggleMonitorService:
 
             # 1. Fetch kernels sorted by dateRun (paginated so all kernels across pages are retrieved)
             raw_kernels = []
+            raw_collaboration_kernels = []
             try:
                 page = 1
                 while page <= 10:
@@ -543,6 +604,15 @@ class KaggleMonitorService:
             except Exception as e:
                 fetch_failures.append("kernels")
                 logger.warning("Error getting kernels for %s: %s", username, e)
+
+            # Shared notebooks are not guaranteed to be included in the
+            # profile list. Add the collaboration list under this credential;
+            # status is still resolved separately, so access is not treated as
+            # proof that this account is the runner.
+            try:
+                raw_collaboration_kernels = _list_collaboration_kernels(api)
+            except Exception as e:
+                logger.warning("Error getting shared kernels for %s: %s", username, e)
 
             # 2. Fetch datasets (paginated mine=True with sort_by='updated' + shared datasets)
             raw_datasets = []
@@ -606,6 +676,24 @@ class KaggleMonitorService:
             if "competitions" in fetch_failures:
                 raw_competitions = cached_competitions
 
+            known_kernel_refs = {
+                getattr(kernel, "ref", "")
+                for kernel in raw_kernels
+                if getattr(kernel, "ref", "")
+            }
+            for shared_kernel in raw_collaboration_kernels:
+                shared_ref = getattr(shared_kernel, "ref", "")
+                if shared_ref and shared_ref not in known_kernel_refs:
+                    raw_kernels.append(shared_kernel)
+                    known_kernel_refs.add(shared_ref)
+            raw_kernels.sort(
+                key=lambda kernel: str(
+                    getattr(kernel, "lastRunTime", getattr(kernel, "last_run_time", ""))
+                    or ""
+                ),
+                reverse=True,
+            )
+
             # Build lookup of existing known kernel metadata from cache
             existing_cache_map = {}
             for old_acc in self.data.get("accounts", []):
@@ -618,6 +706,7 @@ class KaggleMonitorService:
             for k in raw_kernels:
                 ref = getattr(k, "ref", "")
                 title = getattr(k, "title", ref.split("/")[-1] if "/" in ref else ref)
+                owner = _kernel_owner(ref, getattr(k, "author", "") or username)
                 last_run_time = getattr(k, "lastRunTime", getattr(k, "last_run_time", None))
                 total_votes = getattr(k, "totalVotes", getattr(k, "total_votes", 0))
                 is_private = getattr(k, "isPrivate", getattr(k, "is_private", False))
@@ -638,9 +727,19 @@ class KaggleMonitorService:
                     cur_version = getattr(k, "current_version_number", None)
                 if cur_version is None:
                     cur_version = cached_version
+
+                list_status_hint = str(
+                    getattr(k, "status", getattr(k, "state", "")) or ""
+                ).replace("KernelWorkerStatus.", "").upper()
+                initial_status = (
+                    list_status_hint
+                    if list_status_hint in ACTIVE_KERNEL_STATUSES
+                    else ("COMPLETE" if last_run_time else "NOT_CHECKED")
+                )
                 
                 kernel_item = {
                     "account": username,
+                    "owner": owner,
                     "ref": ref,
                     "title": title,
                     "url": f"https://www.kaggle.com/code/{ref}",
@@ -652,7 +751,7 @@ class KaggleMonitorService:
                     "enable_tpu": bool(enable_tpu),
                     "enable_internet": bool(enable_internet),
                     "version_number": cur_version,
-                    "status": "COMPLETE" if last_run_time else "NOT_CHECKED",
+                    "status": initial_status,
                     "failure_message": ""
                 }
                 kernels.append(kernel_item)
@@ -698,7 +797,14 @@ class KaggleMonitorService:
                             if "404" in err_str:
                                 ki["status"] = "COMPLETE"
                             else:
-                                ki["status"] = "UNKNOWN"
+                                previous_info = existing_cache_map.get(ki["ref"], {})
+                                previous_status = str(previous_info.get("status", "")).upper()
+                                ki["status"] = (
+                                    previous_status
+                                    if previous_status in ACTIVE_KERNEL_STATUSES
+                                    else "UNKNOWN"
+                                )
+                                ki["failure_message"] = previous_info.get("failure_message", "")
             except Exception:
                 pass
 
@@ -913,9 +1019,9 @@ class KaggleMonitorService:
         self.save_cache()
         return live_datasets
 
-    def scan_active_running_kernels(self):
-        """Check every account for live sessions and refresh hardware metadata."""
-        if self.is_refreshing:
+    def scan_active_running_kernels(self, allow_during_refresh=False):
+        """Check every credential while keeping notebook owner and runner separate."""
+        if self.is_refreshing and not allow_during_refresh:
             return self.running_cache
         if not self._running_scan_lock.acquire(blocking=False):
             return self.running_cache
@@ -926,10 +1032,13 @@ class KaggleMonitorService:
         try:
             files = self.get_credential_files()
 
-            def update_cached_kernel(ref, status, fail_msg, gpu_flag, tpu_flag,
+            def update_cached_kernel(account, ref, status, fail_msg, gpu_flag, tpu_flag,
                                      internet_flag, cur_version):
+                identity = _kernel_identity(account, ref)
                 for ck in self.data.get("all_kernels", []):
-                    if ck.get("ref") == ref:
+                    if _kernel_identity(ck.get("account"), ck.get("ref")) == identity or (
+                        not ck.get("account") and ck.get("ref") == ref
+                    ):
                         ck["status"] = status
                         ck["failure_message"] = fail_msg
                         ck["enable_gpu"] = gpu_flag
@@ -937,8 +1046,12 @@ class KaggleMonitorService:
                         ck["enable_internet"] = internet_flag
                         ck["version_number"] = cur_version
                 for acc in self.data.get("accounts", []):
+                    if acc.get("username") != account:
+                        continue
                     for ck in acc.get("kernels", []):
-                        if ck.get("ref") == ref:
+                        if _kernel_identity(ck.get("account"), ck.get("ref")) == identity or (
+                            not ck.get("account") and ck.get("ref") == ref
+                        ):
                             ck["status"] = status
                             ck["failure_message"] = fail_msg
                             ck["enable_gpu"] = gpu_flag
@@ -955,6 +1068,7 @@ class KaggleMonitorService:
                     api = KaggleApi()
                     _configure_kaggle_api(api, cred)
                     found = []
+                    status_errors = []
 
                     # dateRun is enough to put active sessions near the front,
                     # but inspect more than five so an older active notebook is
@@ -962,16 +1076,54 @@ class KaggleMonitorService:
                     kernels = api.kernels_list(
                         mine=True, sort_by="dateRun", page_size=100
                     ) or []
-                    for k in kernels[:10]:
+                    try:
+                        shared_kernels = _list_collaboration_kernels(api)
+                    except Exception as exc:
+                        logger.info("Shared kernel list unavailable for %s: %s", user, exc)
+                        shared_kernels = []
+                    known_refs = {getattr(k, "ref", "") for k in kernels}
+                    for shared_kernel in shared_kernels:
+                        shared_ref = getattr(shared_kernel, "ref", "")
+                        if shared_ref and shared_ref not in known_refs:
+                            kernels.append(shared_kernel)
+                            known_refs.add(shared_ref)
+                    kernels.sort(
+                        key=lambda kernel: str(
+                            getattr(kernel, "lastRunTime", getattr(kernel, "last_run_time", ""))
+                            or ""
+                        ),
+                        reverse=True,
+                    )
+                    candidate_kernels = []
+                    candidate_refs = set()
+                    for candidate in [*kernels[:LIVE_SCAN_KERNEL_LIMIT], *shared_kernels[:LIVE_SCAN_KERNEL_LIMIT]]:
+                        candidate_ref = getattr(candidate, "ref", "")
+                        if candidate_ref and candidate_ref not in candidate_refs:
+                            candidate_kernels.append(candidate)
+                            candidate_refs.add(candidate_ref)
+                    for k in candidate_kernels:
                         ref = getattr(k, "ref", "")
                         if not ref:
                             continue
 
-                        cached_info = {}
-                        for cached_kernel in self.data.get("all_kernels", []):
-                            if cached_kernel.get("ref") == ref:
-                                cached_info = cached_kernel
-                                break
+                        cached_info = next(
+                            (
+                                cached_kernel
+                                for cached_kernel in self.data.get("all_kernels", [])
+                                if _kernel_identity(cached_kernel.get("account"), cached_kernel.get("ref"))
+                                == _kernel_identity(user, ref)
+                            ),
+                            {},
+                        )
+                        if not cached_info:
+                            cached_info = next(
+                                (
+                                    cached_kernel
+                                    for cached_kernel in self.data.get("all_kernels", [])
+                                    if not cached_kernel.get("account") and cached_kernel.get("ref") == ref
+                                ),
+                                {},
+                            )
 
                         gpu_flag = _read_kernel_bool(
                             k, "enableGpu", "enable_gpu", cached_info.get("enable_gpu", False)
@@ -998,33 +1150,46 @@ class KaggleMonitorService:
                                 stat, "failure_message", getattr(stat, "failureMessage", "")
                             ) or ""
                         except Exception:
-                            stat_str = "UNKNOWN"
-                            fail_msg = ""
+                            previous_status = str(cached_info.get("status", "")).upper()
+                            status_hint = str(
+                                getattr(k, "status", getattr(k, "state", "")) or ""
+                            ).replace("KernelWorkerStatus.", "").upper()
+                            if previous_status in ACTIVE_KERNEL_STATUSES:
+                                stat_str = previous_status
+                                fail_msg = cached_info.get("failure_message", "")
+                            elif status_hint in ACTIVE_KERNEL_STATUSES:
+                                stat_str = status_hint
+                                fail_msg = ""
+                            else:
+                                stat_str = "UNKNOWN"
+                                fail_msg = ""
+                                status_errors.append(ref)
 
-                        # Metadata is refreshed for both active and inactive
-                        # kernels. This clears stale GPU/TPU flags after a
-                        # notebook is changed from GPU to CPU.
-                        try:
-                            with api.build_kaggle_client() as client:
-                                rm = ApiGetKernelRequest()
-                                owner, slug = ref.split("/", 1) if "/" in ref else (user, ref)
-                                rm.user_name = owner
-                                rm.kernel_slug = slug
-                                metadata_response = client.kernels.kernels_api_client.get_kernel(rm)
-                                if metadata_response and metadata_response.metadata:
-                                    metadata = metadata_response.metadata.to_dict()
-                                    gpu_flag = _read_metadata_bool(metadata, "enableGpu", gpu_flag)
-                                    tpu_flag = _read_metadata_bool(metadata, "enableTpu", tpu_flag)
-                                    internet_flag = _read_metadata_bool(
-                                        metadata, "enableInternet", internet_flag
-                                    )
-                                    if metadata.get("currentVersionNumber") is not None:
-                                        cur_version = metadata["currentVersionNumber"]
-                        except Exception:
-                            pass
+                        # Metadata is only needed for a running card. Avoid a
+                        # second request for every historical candidate during
+                        # the multi-account status scan.
+                        if stat_str in ACTIVE_KERNEL_STATUSES:
+                            try:
+                                with api.build_kaggle_client() as client:
+                                    rm = ApiGetKernelRequest()
+                                    owner, slug = ref.split("/", 1) if "/" in ref else (user, ref)
+                                    rm.user_name = owner
+                                    rm.kernel_slug = slug
+                                    metadata_response = client.kernels.kernels_api_client.get_kernel(rm)
+                                    if metadata_response and metadata_response.metadata:
+                                        metadata = metadata_response.metadata.to_dict()
+                                        gpu_flag = _read_metadata_bool(metadata, "enableGpu", gpu_flag)
+                                        tpu_flag = _read_metadata_bool(metadata, "enableTpu", tpu_flag)
+                                        internet_flag = _read_metadata_bool(
+                                            metadata, "enableInternet", internet_flag
+                                        )
+                                        if metadata.get("currentVersionNumber") is not None:
+                                            cur_version = metadata["currentVersionNumber"]
+                            except Exception:
+                                pass
 
                         update_cached_kernel(
-                            ref, stat_str, fail_msg, gpu_flag, tpu_flag,
+                            user, ref, stat_str, fail_msg, gpu_flag, tpu_flag,
                             internet_flag, cur_version
                         )
 
@@ -1035,6 +1200,7 @@ class KaggleMonitorService:
                         if stat_str in {"RUNNING", "RUNNING_INTERACTIVE", "QUEUED"}:
                             found.append({
                                 "account": user,
+                                "owner": _kernel_owner(ref, user),
                                 "ref": ref,
                                 "title": title,
                                 "url": f"https://www.kaggle.com/code/{ref}",
@@ -1047,12 +1213,19 @@ class KaggleMonitorService:
                                 "last_run_time": format_datetime(last_run_time),
                                 "last_run_human": time_ago(last_run_time)
                             })
-                    return {"username": user, "items": found, "success": True}
+                    return {
+                        "username": user,
+                        "items": found,
+                        "status_errors": status_errors,
+                        "success": True,
+                    }
                 except Exception as exc:
                     logger.warning("Live running scan failed for %s: %s", fpath, exc)
                     return {"username": user, "items": [], "success": False}
 
-            with ThreadPoolExecutor(max_workers=min(10, max(2, len(files)))) as ex:
+            with ThreadPoolExecutor(
+                max_workers=min(LIVE_SCAN_ACCOUNT_WORKERS, max(1, len(files)))
+            ) as ex:
                 results = list(ex.map(check_one, files))
 
             failed_users = {
@@ -1060,24 +1233,34 @@ class KaggleMonitorService:
                 for result in results
                 if not result.get("success") and result.get("username")
             }
-            active_list = [
-                item
+            active_by_identity = {
+                _kernel_identity(item.get("account"), item.get("ref")): item
                 for result in results
                 for item in result.get("items", [])
-            ]
+                if item.get("account") and item.get("ref")
+            }
             if failed_users:
                 # Keep the last known active sessions for accounts that could
                 # not be reached. A network/API error is not evidence that a
                 # running notebook stopped.
-                active_list.extend(
-                    item
-                    for item in self.running_cache
-                    if item.get("account") in failed_users
-                )
+                for item in self.running_cache:
+                    if item.get("account") in failed_users and item.get("ref"):
+                        active_by_identity.setdefault(
+                            _kernel_identity(item.get("account"), item.get("ref")), item
+                        )
                 self.running_scan_error = (
                     "Không thể quét live cho: " + ", ".join(sorted(failed_users))
                 )
+            status_error_count = sum(len(result.get("status_errors", [])) for result in results)
+            if status_error_count:
+                prefix = f"{self.running_scan_error}; " if self.running_scan_error else ""
+                self.running_scan_error = (
+                    f"{prefix}{status_error_count} notebook chưa lấy được trạng thái mới; giữ cache cũ"
+                )
+            active_list = list(active_by_identity.values())
             self.running_cache = active_list
+            for live_kernel in active_list:
+                self.persist_live_kernel(live_kernel)
 
             if self.data and "summary" in self.data:
                 self.data["summary"]["running_kernels"] = len(active_list)
@@ -1109,13 +1292,20 @@ class KaggleMonitorService:
                 status_str = str(getattr(stat, "status", stat)).replace("KernelWorkerStatus.", "")
                 failure_msg = getattr(stat, "failure_message", getattr(stat, "failureMessage", ""))
 
+                target_identity = _kernel_identity(account_username, kernel_ref)
                 for k in self.data.get("all_kernels", []):
-                    if k.get("ref") == kernel_ref:
+                    if _kernel_identity(k.get("account"), k.get("ref")) == target_identity or (
+                        not k.get("account") and k.get("ref") == kernel_ref
+                    ):
                         k["status"] = status_str
                         k["failure_message"] = failure_msg
                 for acc in self.data.get("accounts", []):
+                    if acc.get("username") != account_username:
+                        continue
                     for k in acc.get("kernels", []):
-                        if k.get("ref") == kernel_ref:
+                        if _kernel_identity(k.get("account"), k.get("ref")) == target_identity or (
+                            not k.get("account") and k.get("ref") == kernel_ref
+                        ):
                             k["status"] = status_str
                             k["failure_message"] = failure_msg
 
@@ -1863,14 +2053,15 @@ class KaggleMonitorService:
             all_datasets = []
             all_competitions = []
 
-            seen_kernel_refs = set()
+            seen_kernel_identities = set()
             seen_dataset_refs = set()
 
             for acc in accounts_data:
                 for k in acc.get("kernels", []):
                     k_ref = k.get("ref")
-                    if k_ref and k_ref not in seen_kernel_refs:
-                        seen_kernel_refs.add(k_ref)
+                    k_identity = _kernel_identity(k.get("account"), k_ref)
+                    if k_ref and k_identity not in seen_kernel_identities:
+                        seen_kernel_identities.add(k_identity)
                         all_kernels.append(k)
                     elif not k_ref:
                         all_kernels.append(k)
@@ -1943,6 +2134,8 @@ class KaggleMonitorService:
 
             self.save_cache()
             self.refresh_progress = "Đang lấy quota GPU/TPU trực tiếp từ Kaggle..."
+            self.scan_active_running_kernels(allow_during_refresh=True)
+            self.save_cache()
             quota_result = self.refresh_quotas_live()
             if not quota_result.get("success"):
                 logger.warning("Quota refresh during full refresh was not complete: %s", quota_result)

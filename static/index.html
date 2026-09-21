@@ -533,6 +533,7 @@
             <thead class="bg-slate-50 text-slate-500 uppercase font-semibold text-[11px] border-y border-slate-200">
               <tr>
                 <th class="py-3 px-4">Tài khoản</th>
+                <th class="py-3 px-4">Profile Chrome</th>
                 <th class="py-3 px-4">File Key</th>
                 <th class="py-3 px-4">Trạng thái</th>
                 <th class="py-3 px-4 text-center">Notebooks</th>
@@ -1286,7 +1287,8 @@
                     <h3 class="text-sm font-bold text-slate-900 leading-snug">
                       <a href="javascript:void(0)" onclick="openInspectorModal('${k.account}', '${k.ref}')" class="hover:text-blue-600">${k.title}</a>
                     </h3>
-                    <p class="text-xs text-blue-700 font-mono">@${k.account} • ${k.ref}</p>
+                    <p class="text-xs text-blue-700 font-mono">Người chạy: @${k.account}</p>
+                    <p class="text-[11px] text-slate-500 font-mono">Chủ notebook: @${k.owner || (k.ref.split('/')[0] || k.account)} • ${k.ref}</p>
                   </div>
                   <div class="text-right flex-shrink-0">
                     ${k.enable_gpu ? '<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-300 block mb-1">⚡ GPU Active</span>' : '<span class="px-2 py-0.5 rounded text-[11px] bg-slate-200 text-slate-700 block mb-1">CPU</span>'}
@@ -2583,11 +2585,11 @@
       const tbody = document.getElementById('accountsTableBody');
       const q = (query || '').toLowerCase().trim();
       const filtered = accountsData.filter(a => 
-        !q || a.username.toLowerCase().includes(q) || (a.display_name || '').toLowerCase().includes(q) || (a.file || '').toLowerCase().includes(q)
+        !q || a.username.toLowerCase().includes(q) || (a.display_name || '').toLowerCase().includes(q) || (a.chrome_profile || '').toLowerCase().includes(q) || (a.file || '').toLowerCase().includes(q)
       );
 
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-400">Không tìm thấy tài khoản.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="py-8 text-center text-slate-400">Không tìm thấy tài khoản.</td></tr>';
         return;
       }
 
@@ -2600,6 +2602,13 @@
                 <span class="font-bold text-slate-900 block">${acc.display_name || acc.username}</span>
                 <span class="text-[11px] text-blue-600 font-mono">@${acc.username}</span>
               </div>
+            </div>
+          </td>
+          <td class="py-3 px-4">
+            <div class="flex items-center gap-2.5">
+              <a href="/image/@${acc.username.toLowerCase()}.png" target="_blank" rel="noopener noreferrer" title="Mở ảnh profile gốc" class="block flex-shrink-0">
+                <img src="/image/@${acc.username.toLowerCase()}.png" alt="Ảnh profile Chrome ${acc.chrome_profile || acc.username}" class="w-32 h-32 rounded-lg border border-slate-200 bg-white object-contain" loading="lazy">
+              </a>
             </div>
           </td>
           <td class="py-3 px-4 font-mono text-slate-600">${acc.file}</td>
@@ -2692,7 +2701,8 @@
         const data = await res.json();
         if (data.success) {
           showToast(`Trạng thái: ${data.status}`, 'success');
-          const k = kernelsData.find(item => item.ref === ref);
+          const k = kernelsData.find(item => item.ref === ref && item.account === account)
+            || kernelsData.find(item => item.ref === ref);
           if (k) {
             k.status = data.status;
             k.failure_message = data.failure_message;
@@ -2743,8 +2753,14 @@
             banner.classList.add('hidden');
             document.getElementById('refreshIcon').classList.remove('animate-spin-custom');
             showToast('Đồng bộ dữ liệu thành công!', 'success');
-            loadData();
-            if (currentTab === 'quotas') renderQuotasTab();
+            await loadData();
+            if (currentTab === 'running') {
+              await renderRunningTab();
+            } else if (currentTab === 'quotas') {
+              renderQuotasTab();
+            } else if (currentTab === 'kernels') {
+              renderKernelsTab();
+            }
           }
         } catch (e) {
           clearInterval(interval);

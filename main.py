@@ -15,6 +15,19 @@ from kaggle_service import monitor_service, BASE_DIR
 
 app = FastAPI(title="Kaggle Multi-Account Monitor Dashboard", version="1.2.0")
 
+CHROME_PROFILE_BY_ACCOUNT = {
+    "baovuong3009": "Bảo",
+    "justb2464": "12",
+    "kitnehi1211": "Kiet Truong",
+    "kittruong": "Trinh",
+    "lngchip": "Lê Ngọc",
+    "ngodongnguyen": "Nguyễn",
+    "phatle54": "Phat",
+    "thaivu1": "Kiet",
+    "truongkietphu": "Truong",
+    "xyzabz": "xyz",
+}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,6 +39,9 @@ app.add_middleware(
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+IMAGE_DIR = os.path.join(BASE_DIR, "image")
+if os.path.isdir(IMAGE_DIR):
+    app.mount("/image", StaticFiles(directory=IMAGE_DIR), name="images")
 
 class QuotaUpdateRequest(BaseModel):
     gpu_remaining: Optional[float] = None
@@ -82,6 +98,7 @@ def get_accounts():
         summary_accounts.append({
             "file": a.get("file"),
             "username": a.get("username"),
+            "chrome_profile": CHROME_PROFILE_BY_ACCOUNT.get(a.get("username"), ""),
             "display_name": a.get("display_name"),
             "avatar_url": a.get("avatar_url"),
             "bio": a.get("bio", ""),
