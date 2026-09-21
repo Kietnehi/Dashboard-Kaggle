@@ -43,8 +43,10 @@ from kagglesdk.kernels.services.kernels_api_service import (
     ApiListKernelSessionOutputRequest, 
     ApiGetKernelRequest, 
     ApiGetKernelSessionStatusRequest,
-    ApiListKernelFilesRequest
+    ApiListKernelFilesRequest,
+    ApiListKernelsRequest,
 )
+from kagglesdk.kernels.types.kernels_enums import KernelsListSortType, KernelsListViewType
 from kagglesdk.datasets.types.dataset_enums import DatasetSelectionGroup, DatasetSortBy
 from kagglesdk.datasets.types.dataset_api_service import ApiListDatasetsRequest
 
@@ -56,6 +58,13 @@ CACHE_FILE = os.path.join(BASE_DIR, "data_cache.json")
 QUOTA_FILE = os.path.join(BASE_DIR, "quota_data.json")
 
 kaggle_api_lock = threading.Lock()
+
+# Running-state checks are deliberately bounded. Kaggle can return a transient
+# rate-limit/permission error when many credentials query sessions at once.
+LIVE_SCAN_ACCOUNT_WORKERS = 3
+LIVE_SCAN_KERNEL_LIMIT = 10
+COLLABORATION_KERNEL_PAGE_LIMIT = 3
+ACTIVE_KERNEL_STATUSES = {"RUNNING", "RUNNING_INTERACTIVE", "QUEUED"}
 
 def format_bytes(size):
     if not size or not isinstance(size, (int, float)):
@@ -146,6 +155,82 @@ def _read_metadata_bool(metadata, key, fallback=False):
     """Read an optional boolean from a Kaggle metadata dictionary."""
     value = metadata.get(key) if isinstance(metadata, dict) else None
     return _coerce_bool(fallback) if value is None else _coerce_bool(value)
+
+
+def _kernel_identity(account, ref):
+    """Identify a notebook together with the credential being checked."""
+    return (str(account or "").strip().lower(), str(ref or "").strip())
+
+
+def _kernel_owner(ref, fallback=""):
+    """Get the notebook owner encoded in a Kaggle ``owner/slug`` ref."""
+    ref = str(ref or "").strip()
+    return ref.split("/", 1)[0] if "/" in ref else str(fallback or "").strip()
+
+
+def _clean_kernel_session_log(raw_log):
+    """Decode the stream format returned by Kaggle's session-output endpoint."""
+    if not raw_log:
+        return ""
+
+    raw_text = raw_log.strip()
+    if raw_text.startswith("[") and '{"stream_name"' in raw_text:
+        try:
+            fixed = raw_text
+            if not fixed.endswith("]"):
+                fixed = fixed.rstrip(", \r\n") + "]"
+            entries = json.loads(fixed)
+            return "".join(
+                entry.get("data", "")
+                for entry in entries
+                if isinstance(entry, dict)
+            )
+        except Exception:
+            parts = re.findall(r'"data":\s*"((?:[^"\\]|\\.)*)"', raw_text)
+            if parts:
+                try:
+                    return "".join(
+                        bytes(part, "utf-8").decode("unicode_escape", errors="replace")
+                        for part in parts
+                    )
+                except Exception:
+                    pass
+    return raw_log
+
+
+def _list_collaboration_kernels(api, *, page_size=100, page_limit=COLLABORATION_KERNEL_PAGE_LIMIT):
+    """Return notebooks shared with the credential configured on ``api``.
+
+    The regular ``kernels_list(mine=True)`` call is the account's profile
+    group. A notebook shared by another user is in Kaggle's collaboration group
+    instead. This only discovers the notebook for that credential; the live
+    session status is still checked with that same credential below.
+    """
+    result = []
+    with api.build_kaggle_client() as client:
+        for page in range(1, max(1, page_limit) + 1):
+            request = ApiListKernelsRequest()
+            request.page = page
+            request.page_size = page_size
+            request.group = KernelsListViewType.COLLABORATION
+            request.sort_by = KernelsListSortType.DATE_RUN
+            request.user = ""
+            request.language = "all"
+            request.kernel_type = "all"
+            request.output_type = "all"
+            request.search = ""
+            response = client.kernels.kernels_api_client.list_kernels(request)
+            batch = getattr(response, "kernels", None)
+            if batch is None:
+                batch = response or []
+            batch = list(batch or [])
+            if not batch:
+                break
+            result.extend(batch)
+            if len(batch) < page_size:
+                break
+    return result
+
 
 def time_ago(dt):
     if not dt:
@@ -1044,6 +1129,69 @@ class KaggleMonitorService:
             except Exception as e:
                 return {"success": False, "message": str(e)}
 
+    def get_kernel_live_output(self, account_username, kernel_ref, check_status=False):
+        """Fetch the current session status and console log for a running notebook."""
+        target_cred = self.get_credential_by_username(account_username)
+        if not target_cred:
+            return {"success": False, "message": "Không tìm thấy credential cho tài khoản này"}
+
+        owner, slug = (
+            kernel_ref.split("/", 1) if "/" in kernel_ref
+            else (account_username, kernel_ref)
+        )
+
+        with kaggle_api_lock:
+            api = KaggleApi()
+            _configure_kaggle_api(api, target_cred)
+            try:
+                status_str = ""
+                failure_msg = ""
+                status_checked = False
+                log_clean = ""
+
+                with api.build_kaggle_client() as client:
+                    if check_status:
+                        req_status = ApiGetKernelSessionStatusRequest()
+                        req_status.user_name = owner
+                        req_status.kernel_slug = slug
+                        try:
+                            status_response = client.kernels.kernels_api_client.get_kernel_session_status(req_status)
+                            status_str = str(getattr(status_response, "status", "")).replace(
+                                "KernelWorkerStatus.", ""
+                            ).upper()
+                            failure_msg = getattr(
+                                status_response,
+                                "failure_message",
+                                getattr(status_response, "failureMessage", ""),
+                            ) or ""
+                            status_checked = bool(status_str)
+                        except Exception as exc:
+                            logger.info("Could not refresh live status for %s: %s", kernel_ref, exc)
+
+                    req_output = ApiListKernelSessionOutputRequest()
+                    req_output.user_name = owner
+                    req_output.kernel_slug = slug
+                    output_response = client.kernels.kernels_api_client.list_kernel_session_output(req_output)
+                    log_clean = _clean_kernel_session_log(
+                        getattr(output_response, "log", "") or ""
+                    )
+
+                is_active = status_str in ACTIVE_KERNEL_STATUSES if status_checked else None
+                return {
+                    "success": True,
+                    "ref": kernel_ref,
+                    "status": status_str,
+                    "status_checked": status_checked,
+                    "is_active": is_active,
+                    "failure_message": failure_msg,
+                    "output": {
+                        "log": log_clean,
+                        "log_length": len(log_clean),
+                    },
+                }
+            except Exception as e:
+                return {"success": False, "message": str(e)}
+
     def get_kernel_details(self, account_username, kernel_ref, version=None):
         target_cred = self.get_credential_by_username(account_username)
         if not target_cred:
@@ -1132,32 +1280,9 @@ class KaggleMonitorService:
                     except Exception as e:
                         logger.warning("Could not list persistent kernel files: %s", e)
 
-                # Clean log parser
-                log_clean = ""
-                if out_log_raw:
-                    raw_s = out_log_raw.strip()
-                    if raw_s.startswith("[") and '{"stream_name"' in raw_s:
-                        try:
-                            # Parse JSON event stream
-                            fixed = raw_s
-                            if not fixed.endswith("]"):
-                                fixed = fixed.rstrip(", \r\n") + "]"
-                            entries = json.loads(fixed)
-                            lines = [e.get("data", "") for e in entries if isinstance(e, dict)]
-                            log_clean = "".join(lines)
-                        except Exception:
-                            # Fallback regex extraction of "data":"..."
-                            parts = re.findall(r'"data":\s*"((?:[^"\\]|\\.)*)"', raw_s)
-                            if parts:
-                                try:
-                                    log_clean = "".join(bytes(p, "utf-8").decode("unicode_escape", errors="replace") for p in parts)
-                                except Exception:
-                                    log_clean = raw_s
-                            else:
-                                log_clean = raw_s
-                    else:
-                        log_clean = out_log_raw
-                else:
+                # Decode the same event-stream format used by the live poller.
+                log_clean = _clean_kernel_session_log(out_log_raw)
+                if not out_log_raw:
                     if status_str in ["RUNNING", "RUNNING_INTERACTIVE", "QUEUED"]:
                         cur_v = meta.get("currentVersionNumber", 1) or 1
                         log_clean = (
@@ -1166,8 +1291,8 @@ class KaggleMonitorService:
                             f"Phần cứng: {'GPU Bật' if meta.get('enableGpu') else 'CPU'} | Internet: {'Bật' if meta.get('enableInternet') else 'Tắt'}\n"
                             f"Lần chạy cuối: {format_datetime(meta.get('lastRunTime'))}\n\n"
                             f"[Ghi chú]: Kaggle đang thực thi phiên chạy trên worker container.\n"
-                            f"Nhật ký console sẽ được máy chủ Kaggle flush buffer theo từng giai đoạn hoặc hoàn tất khi phiên chạy kết thúc.\n"
-                            f"Bạn có thể bấm 'Làm mới Log' hoặc bấm nút 'Mở trên Kaggle ↗' ở góc trên để theo dõi stream trực tiếp."
+                            f"Dashboard tự kiểm tra log mỗi 5 giây; Kaggle chỉ cung cấp nội dung sau khi flush buffer.\n"
+                            f"Nút 'Mở trên Kaggle ↗' mở trang notebook để xem console trực tiếp."
                         )
                     else:
                         log_clean = "[Phiên chạy này chưa có output log hoặc log đã được lưu trữ trên giao diện Kaggle]"

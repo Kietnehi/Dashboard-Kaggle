@@ -763,6 +763,7 @@
         <!-- SUB-TAB 1: OUTPUT LOG -->
         <div id="insp-view-output" class="space-y-3">
           <div class="flex items-center justify-between text-xs">
+            <span id="inspectorLiveStatus" title="Dashboard kiểm tra mỗi 5 giây; thời điểm log xuất hiện phụ thuộc vào lúc Kaggle flush buffer." class="inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-medium bg-slate-50 text-slate-600 border-slate-200">Đang tải log...</span>
             <span class="text-slate-500">Nhật ký tiến trình thực thi trực tiếp từ Kaggle:</span>
             <div class="flex items-center gap-2">
               <button onclick="copyInspectorLog()" class="px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-blue-600 flex items-center gap-1 shadow-sm cursor-pointer">
@@ -1709,8 +1710,120 @@
 
     // ==================== INSPECTOR MODAL: INPUT, OUTPUT, VERSION & CODE ====================
     let currentInspectorData = null;
+    const INSPECTOR_LIVE_POLL_INTERVAL_MS = 5000;
+    const INSPECTOR_STATUS_CHECK_EVERY = 6;
+    let inspectorLivePollTimer = null;
+    let inspectorLiveGeneration = 0;
+    let inspectorLivePollInFlight = false;
+    let inspectorLivePollCount = 0;
+    let inspectorDetailsGeneration = 0;
+
+    function setInspectorLiveStatus(message, state = 'idle') {
+      const statusEl = document.getElementById('inspectorLiveStatus');
+      if (!statusEl) return;
+
+      const stateClasses = {
+        live: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        retry: 'bg-amber-50 text-amber-700 border-amber-200',
+        stopped: 'bg-slate-100 text-slate-600 border-slate-200',
+        history: 'bg-blue-50 text-blue-700 border-blue-200',
+        idle: 'bg-slate-50 text-slate-600 border-slate-200'
+      };
+      statusEl.className = `inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-medium ${stateClasses[state] || stateClasses.idle}`;
+      statusEl.innerText = message;
+    }
+
+    function stopInspectorLivePolling() {
+      if (inspectorLivePollTimer) clearInterval(inspectorLivePollTimer);
+      inspectorLivePollTimer = null;
+      inspectorLiveGeneration += 1;
+    }
+
+    function startInspectorLivePolling() {
+      stopInspectorLivePolling();
+      inspectorLivePollCount = 0;
+      const generation = inspectorLiveGeneration;
+      inspectorLivePollTimer = setInterval(
+        () => pollInspectorLiveOutput(generation),
+        INSPECTOR_LIVE_POLL_INTERVAL_MS
+      );
+    }
+
+    function updateInspectorLog(logText) {
+      if (typeof logText !== 'string') return;
+      const logEl = document.getElementById('inspectorLogContent');
+      if (!logEl || logEl.innerText === logText) return;
+
+      const wasAtBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 24;
+      const hadContent = Boolean(logEl.innerText.trim());
+      logEl.innerText = logText;
+      if (wasAtBottom || !hadContent) logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function pollInspectorLiveOutput(generation) {
+      if (generation !== inspectorLiveGeneration || inspectorLivePollInFlight) return;
+      if (!currentInspectedKernel || document.getElementById('inspectorModal').classList.contains('hidden')) {
+        stopInspectorLivePolling();
+        return;
+      }
+      if (document.hidden) return;
+
+      const { account, ref } = currentInspectedKernel;
+      const shouldCheckStatus = (++inspectorLivePollCount % INSPECTOR_STATUS_CHECK_EVERY) === 0;
+      inspectorLivePollInFlight = true;
+      try {
+        const url = `/api/kernel/live-output?account=${encodeURIComponent(account)}&ref=${encodeURIComponent(ref)}&check_status=${shouldCheckStatus}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (generation !== inspectorLiveGeneration || !currentInspectedKernel ||
+            currentInspectedKernel.account !== account || currentInspectedKernel.ref !== ref ||
+            document.getElementById('inspectorModal').classList.contains('hidden')) return;
+        if (!data.success) {
+          setInspectorLiveStatus('Đang thử kết nối lại...', 'retry');
+          return;
+        }
+
+        if (data.status_checked && data.status) {
+          document.getElementById('inspectorStatusBadge').innerHTML = renderStatusBadge(data.status, data.failure_message);
+          if (currentInspectorData) {
+            currentInspectorData.status = data.status;
+            currentInspectorData.failure_message = data.failure_message || '';
+          }
+        }
+
+        const logText = (data.output && data.output.log) || '';
+        if (logText.trim()) {
+          updateInspectorLog(logText);
+          if (currentInspectorData) {
+            currentInspectorData.output = currentInspectorData.output || {};
+            currentInspectorData.output.log = logText;
+          }
+        }
+
+        if (data.status_checked && data.is_active === false) {
+          setInspectorLiveStatus('Phiên chạy đã kết thúc', 'stopped');
+          stopInspectorLivePolling();
+          return;
+        }
+        const knownActiveStatus = currentInspectorData &&
+          ['RUNNING', 'RUNNING_INTERACTIVE', 'QUEUED'].includes((currentInspectorData.status || '').toUpperCase());
+        setInspectorLiveStatus(
+          knownActiveStatus ? 'Tự cập nhật mỗi 5 giây' : 'Đang thử kết nối lại...',
+          knownActiveStatus ? 'live' : 'retry'
+        );
+      } catch (err) {
+        if (generation === inspectorLiveGeneration) {
+          setInspectorLiveStatus('Đang thử kết nối lại...', 'retry');
+        }
+      } finally {
+        inspectorLivePollInFlight = false;
+      }
+    }
 
     async function openInspectorModal(account, ref, version = null) {
+      stopInspectorLivePolling();
       currentInspectedKernel = { account, ref, version };
       document.getElementById('inspectorTitle').innerText = ref.split('/')[1] || ref;
       document.getElementById('inspectorSubtitle').innerText = `@${account} • ${ref}`;
@@ -1736,6 +1849,9 @@
 
     async function refreshInspectorDetails(specificVersion = null) {
       if (!currentInspectedKernel) return;
+      const requestGeneration = ++inspectorDetailsGeneration;
+      stopInspectorLivePolling();
+      setInspectorLiveStatus('Đang tải log...', 'idle');
       const { account, ref } = currentInspectedKernel;
       const versionToFetch = (specificVersion !== null && specificVersion !== undefined) ? specificVersion : currentInspectedKernel.version;
       
@@ -1749,11 +1865,15 @@
         }
         const res = await fetch(url);
         const data = await res.json();
+        if (requestGeneration !== inspectorDetailsGeneration || !currentInspectedKernel ||
+            currentInspectedKernel.account !== account || currentInspectedKernel.ref !== ref ||
+            document.getElementById('inspectorModal').classList.contains('hidden')) return;
         currentInspectorData = data;
 
         if (icon) icon.classList.remove('animate-spin-custom');
 
         if (!data.success) {
+          setInspectorLiveStatus('Không lấy được log; sẽ thử lại', 'retry');
           document.getElementById('inspectorLogContent').innerText = `Không thể lấy dữ liệu: ${data.message || 'Lỗi không xác định'}`;
           return;
         }
@@ -1901,9 +2021,24 @@
         
         renderNotebookCellsList();
 
+        const status = (data.status || '').toUpperCase();
+        const isActive = ['RUNNING', 'RUNNING_INTERACTIVE', 'QUEUED'].includes(status);
+        const isLatestVersion = data.is_selected_latest === true ||
+          Number(data.selected_version) === Number(data.current_version);
+        if (isActive && isLatestVersion) {
+          setInspectorLiveStatus('Tự cập nhật mỗi 5 giây', 'live');
+          startInspectorLivePolling();
+        } else if (isActive) {
+          setInspectorLiveStatus('Chọn phiên bản mới nhất để xem log trực tiếp', 'history');
+        } else {
+          setInspectorLiveStatus('Phiên chạy không còn hoạt động', 'stopped');
+        }
+
         lucide.createIcons();
       } catch (err) {
+        if (requestGeneration !== inspectorDetailsGeneration) return;
         if (icon) icon.classList.remove('animate-spin-custom');
+        setInspectorLiveStatus('Không lấy được log; sẽ thử lại', 'retry');
         document.getElementById('inspectorLogContent').innerText = "Lỗi kết nối khi tải chi tiết notebook: " + err.message;
       }
     }
@@ -2204,6 +2339,8 @@
     }
 
     function closeInspectorModal() {
+      inspectorDetailsGeneration += 1;
+      stopInspectorLivePolling();
       document.getElementById('inspectorModal').classList.add('hidden');
       currentInspectedKernel = null;
     }

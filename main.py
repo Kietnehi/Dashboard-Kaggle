@@ -188,6 +188,15 @@ def get_kernel_details(
     res = monitor_service.get_kernel_details(account, ref, version=version)
     return res
 
+@app.get("/api/kernel/live-output")
+def get_kernel_live_output(
+    account: str = Query(...),
+    ref: str = Query(...),
+    check_status: bool = Query(False),
+):
+    """Fetch only the latest session status and console log for live polling."""
+    return monitor_service.get_kernel_live_output(account, ref, check_status=check_status)
+
 @app.get("/api/quotas")
 def get_quotas(live: bool = Query(False, description="Đọc quota GPU/TPU trực tiếp từ Kaggle")):
     if live:
