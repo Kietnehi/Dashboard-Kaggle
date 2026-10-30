@@ -5003,6 +5003,80 @@
       }
     }
 
+    function resetTrainerForm(notify = true) {
+      // 1. Reset source mode to local
+      setTrainerSourceMode('local');
+
+      // 2. Clear Local Notebook selector
+      const localSel = document.getElementById('trainerLocalNotebookSelect');
+      if (localSel) localSel.value = '';
+
+      // 3. Clear Uploaded file info & input
+      const fileInput = document.getElementById('trainerFileInput');
+      if (fileInput) fileInput.value = '';
+      const uploadInfo = document.getElementById('uploadedFileInfo');
+      if (uploadInfo) uploadInfo.classList.add('hidden');
+      const dropZone = document.getElementById('trainerDropZone');
+      if (dropZone) dropZone.classList.remove('hidden');
+
+      // 4. Clear Cached Notebook selector
+      const cachedSel = document.getElementById('trainerNotebookSelect');
+      if (cachedSel) cachedSel.value = '';
+
+      // 5. Hide auto-detect notice box
+      const noticeBox = document.getElementById('localDetectedNotice');
+      if (noticeBox) noticeBox.classList.add('hidden');
+
+      // 6. Reset Title & Slug
+      const titleInput = document.getElementById('trainerTitle');
+      if (titleInput) titleInput.value = '';
+      const slugInput = document.getElementById('trainerSlug');
+      if (slugInput) slugInput.value = '';
+
+      // 7. Reset Source Code & State
+      currentTrainerSourceCode = '';
+      trainerIsNotebook = true;
+
+      // 8. Reset Hardware radios to NvidiaTeslaT4 (GPU T4 x 2)
+      const radios = document.getElementsByName('trainerHardware');
+      for (const r of radios) {
+        if (r.value === 'NvidiaTeslaT4') {
+          r.checked = true;
+          break;
+        }
+      }
+
+      // 9. Reset Environment checkboxes
+      const chkInternet = document.getElementById('trainerEnableInternet');
+      if (chkInternet) chkInternet.checked = true;
+      const chkPrivate = document.getElementById('trainerIsPrivate');
+      if (chkPrivate) chkPrivate.checked = true;
+      const chkBackup = document.getElementById('trainerBackupToMaster');
+      if (chkBackup) chkBackup.checked = false;
+
+      // 10. Clear selected inputs (datasets / kernels / competitions)
+      selectedInputSources = [];
+      renderSelectedInputs();
+
+      // 11. Clear input search & suggestions
+      const searchInput = document.getElementById('trainerInputSearch');
+      if (searchInput) searchInput.value = '';
+      const suggestions = document.getElementById('trainerSuggestionsDropdown');
+      if (suggestions) suggestions.classList.add('hidden');
+
+      // 12. Reset status summary
+      const statusSummary = document.getElementById('runnerStatusSummary');
+      if (statusSummary) statusSummary.innerText = 'Sẵn sàng gửi lệnh lên Kaggle';
+
+      // 13. Re-scan and refresh recommendations / quota to pick the best account
+      loadTrainerRecommendations();
+
+      if (notify) {
+        showToast('Đã xóa sạch bộ lọc và làm mới form! Bạn có thể nhập cấu hình mới.', 'success');
+      }
+      lucide.createIcons();
+    }
+
     function quickTrainNotebook(account, ref) {
       switchTab('trainer');
       setTrainerSourceMode('cached');
