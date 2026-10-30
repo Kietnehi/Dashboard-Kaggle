@@ -5761,7 +5761,7 @@
           <div class="text-[11px] text-slate-400 leading-relaxed bg-slate-950/60 p-3 rounded-lg border border-slate-800/60">
             ${s === 'QUEUED' 
               ? '<span class="text-amber-400 font-bold flex items-center gap-1.5"><i data-lucide="clock" class="w-3.5 h-3.5 animate-spin"></i> Máy chủ Kaggle đang cấp phát GPU Tesla T4 & mount input datasets (thường mất 30–50 giây)...</span><div class="mt-1 text-slate-400">Luồng log đầu ra (stdout/stderr) sẽ tự động stream tại đây ngay khi cell code đầu tiên thực thi.</div>' 
-              : 'Đang lắng nghe luồng logs trực tiếp từ Kaggle API...'}
+              : '<span class="text-emerald-400 font-bold flex items-center gap-1.5"><i data-lucide="activity" class="w-3.5 h-3.5 animate-pulse text-emerald-400"></i> Máy ảo GPU Tesla T4 đang chạy & kết nối luồng logs trực tiếp từ Kaggle API...</span><div class="mt-1 text-slate-400">Môi trường CUDA, Python Kernel và datasets đang được xử lý trong <code>/kaggle/working</code>. Output sẽ tự động stream ngay khi có dữ liệu ghi.</div>'}
           </div>
         </div>
       `;
@@ -5958,6 +5958,20 @@
             updateRunPipelineStepper(data.status);
           }
 
+          // Dynamically synchronize console select dropdown option text and icon
+          const select = document.getElementById('consoleNotebookSelect');
+          if (select) {
+            const opt = select.querySelector(`option[value="${currentActiveRun.account}|${currentActiveRun.ref}"]`);
+            if (opt) {
+              const isRun = data.status === 'RUNNING' || data.status === 'RUNNING_INTERACTIVE';
+              const isQ = data.status === 'QUEUED';
+              const isComp = data.status === 'COMPLETE';
+              const isErr = data.status === 'ERROR' || data.status === 'FAILED';
+              const ic = isRun ? '🟢' : (isQ ? '🟡' : (isComp ? '✅' : (isErr ? '❌' : '⚪')));
+              opt.textContent = `${ic} [${data.status}] ${currentActiveRun.title || currentActiveRun.ref} (@${currentActiveRun.account})`;
+            }
+          }
+
           if (data.status === 'COMPLETE' || data.status === 'ERROR' || data.status === 'CANCEL_ACKNOWLEDGED') {
             if (trainerActivePollTimer) clearInterval(trainerActivePollTimer);
             trainerActivePollTimer = null;
@@ -5975,6 +5989,7 @@
         const consoleEl = document.getElementById('trainerConsoleLog');
         const statsEl = document.getElementById('consoleStatsBadge');
         const footerStatus = document.getElementById('terminalFooterStatus');
+        const footerLines = document.getElementById('terminalFooterLines');
         const lastSync = document.getElementById('terminalLastSyncTime');
         const pingLight = document.getElementById('consolePingLight');
 
@@ -5991,7 +6006,6 @@
               statsEl.innerText = `• ${lines.length} dòng (${kb} KB)`;
               statsEl.classList.remove('hidden');
             }
-            const footerLines = document.getElementById('terminalFooterLines');
             if (footerLines) {
               footerLines.innerText = `${lines.length} dòng (${kb} KB)`;
             }
@@ -6013,6 +6027,9 @@
           } else {
             consoleEl.innerHTML = renderTerminalSplash(currentActiveRun);
             if (statsEl) statsEl.classList.add('hidden');
+            if (footerLines) {
+              footerLines.innerText = '0 dòng (chờ output)';
+            }
             if (footerStatus) {
               footerStatus.innerText = currentActiveRun.status === 'QUEUED' 
                 ? 'Đang đợi Kaggle cấp máy GPU và sinh log đầu tiên...' 
@@ -6295,12 +6312,30 @@
         ['RUNNING', 'RUNNING_INTERACTIVE', 'QUEUED'].includes((k.status || '').toUpperCase())
       );
 
+      // If currentActiveRun is active, ensure it is prominently in the running group!
+      if (currentActiveRun && ['RUNNING', 'RUNNING_INTERACTIVE', 'QUEUED'].includes((currentActiveRun.status || '').toUpperCase())) {
+        const found = runningKernels.find(k => k.account === currentActiveRun.account && k.ref === currentActiveRun.ref);
+        if (!found) {
+          runningKernels.unshift({
+            account: currentActiveRun.account,
+            ref: currentActiveRun.ref,
+            title: currentActiveRun.title || currentActiveRun.ref,
+            status: currentActiveRun.status,
+            enable_gpu: true
+          });
+        } else {
+          found.status = currentActiveRun.status;
+        }
+      }
+
       if (runningKernels.length > 0) {
         html += '<optgroup label="⚡ ĐANG CHẠY TRỰC TIẾP (LIVE RUNNING)">';
         for (const k of runningKernels) {
           const val = `${k.account}|${k.ref}`;
           const isSel = val === currentVal ? 'selected' : '';
-          html += `<option value="${val}" ${isSel}>🟢 [${k.status}] ${k.ref} (@${k.account})</option>`;
+          const s = (k.status || 'RUNNING').toUpperCase();
+          const icon = s === 'QUEUED' ? '🟡' : '🟢';
+          html += `<option value="${val}" ${isSel}>${icon} [${s}] ${k.title || k.ref} (@${k.account})</option>`;
         }
         html += '</optgroup>';
       }
@@ -6317,8 +6352,13 @@
               // Skip if already in running group
               if (runningKernels.some(rk => `${rk.account}|${rk.ref}` === val)) continue;
               const isSel = val === currentVal ? 'selected' : '';
-              const icon = h.status === 'COMPLETE' ? '✅' : (h.status === 'ERROR' ? '❌' : '⚪');
-              html += `<option value="${val}" ${isSel}>${icon} [${h.status || 'DONE'}] ${h.title || h.ref} (@${h.account})</option>`;
+              const s = (h.status || 'DONE').toUpperCase();
+              let icon = '⚪';
+              if (s === 'COMPLETE') icon = '✅';
+              else if (s === 'ERROR' || s === 'FAILED') icon = '❌';
+              else if (s === 'RUNNING' || s === 'RUNNING_INTERACTIVE') icon = '🟢';
+              else if (s === 'QUEUED') icon = '🟡';
+              html += `<option value="${val}" ${isSel}>${icon} [${s}] ${h.title || h.ref} (@${h.account})</option>`;
             }
             html += '</optgroup>';
           }

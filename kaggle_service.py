@@ -1540,8 +1540,8 @@ class KaggleMonitorService:
             except Exception as e:
                 return {"success": False, "message": str(e)}
 
-    def _fetch_kernel_stream_log(self, cred, owner, slug, max_lines=300):
-        """Fetch live Server-Sent Events (SSE) console stream for running or shared notebooks."""
+    def _fetch_kernel_stream_log(self, cred, owner, slug, max_lines=5000):
+        """Fetch live console stream for running or shared notebooks from Kaggle API."""
         if not cred:
             return ""
         api = KaggleApi()
@@ -1555,27 +1555,52 @@ class KaggleMonitorService:
                 base = http._endpoint if getattr(http, "_endpoint", None) else "https://api.kaggle.com"
                 url = f"{base}/v1/kernels/logs/stream/{owner}/{slug}"
                 headers = dict(http._session.headers)
-                headers["Accept"] = "text/event-stream, */*"
+                headers["Accept"] = "text/event-stream, application/json, */*"
                 headers.pop("Content-Type", None)
 
-                resp = http._session.get(url, stream=True, headers=headers, auth=http._session.auth, timeout=(3.0, 1.2))
-                for line in resp.iter_lines(decode_unicode=True):
-                    if not line or not line.startswith("data:"):
+                # Resilient timeout for streaming response
+                resp = http._session.get(url, stream=True, headers=headers, auth=http._session.auth, timeout=(3.0, 6.0))
+                if resp.status_code != 200:
+                    return ""
+
+                # Decode chunks flexibly supporting:
+                # 1. JSON array streaming: [{"stream_name":"...", "data":"..."}, ...]
+                # 2. SSE formatted lines: data: {"data": "..."} or data: ...
+                # 3. Direct JSON text objects
+                for raw_line in resp.iter_lines(decode_unicode=True):
+                    if not raw_line:
                         continue
-                    payload = line[len("data:"):].lstrip()
-                    if payload == "END_OF_LOG":
+                    line = raw_line.strip()
+                    if line.startswith("data:"):
+                        line = line[len("data:"):].strip()
+                    if line == "END_OF_LOG":
                         break
+                    if line.startswith("["):
+                        line = line[1:].strip()
+                    if line.startswith(","):
+                        line = line[1:].strip()
+                    if line.endswith("]"):
+                        line = line[:-1].strip()
+                    if not line:
+                        continue
                     try:
-                        data = json.loads(payload)
-                        if isinstance(data, dict) and "data" in data:
-                            chunks.append(data["data"])
+                        item = json.loads(line)
+                        if isinstance(item, dict) and "data" in item:
+                            chunks.append(item["data"])
+                        elif isinstance(item, list):
+                            for sub in item:
+                                if isinstance(sub, dict) and "data" in sub:
+                                    chunks.append(sub["data"])
+                                elif isinstance(sub, str):
+                                    chunks.append(sub)
+                        elif isinstance(item, str):
+                            chunks.append(item)
                     except Exception:
-                        chunks.append(payload)
+                        chunks.append(line + "\n")
                     if len(chunks) >= max_lines:
                         break
-        except Exception:
-            # Live SSE terminates by buffer boundary or timeout, which is expected
-            pass
+        except Exception as e:
+            logger.debug("Kernel stream log exception for %s/%s: %s", owner, slug, e)
         finally:
             if resp:
                 try:
@@ -1666,19 +1691,46 @@ class KaggleMonitorService:
 
             log_clean = _clean_kernel_session_log(raw_log)
 
-            is_active = status_str in ACTIVE_KERNEL_STATUSES if status_checked else None
+            # Resolve effective status from live check or cached running list
+            cached_status = None
+            ref_lower = kernel_ref.strip().lower()
+            for rk in self.running_cache:
+                if str(rk.get("ref", "")).strip().lower() == ref_lower:
+                    cached_status = rk.get("status")
+                    break
+
+            effective_status = status_str or cached_status or ""
+
+            # Update cache and central training history if live check found a status
+            if status_checked and status_str:
+                for rk in self.running_cache:
+                    if str(rk.get("ref", "")).strip().lower() == ref_lower:
+                        rk["status"] = status_str
+                        if failure_msg:
+                            rk["failure_message"] = failure_msg
+                if status_str in ("COMPLETE", "ERROR", "CANCEL_ACKNOWLEDGED", "DELETED"):
+                    self.running_cache = [
+                        rk for rk in self.running_cache
+                        if str(rk.get("ref", "")).strip().lower() != ref_lower
+                    ]
+                self.save_cache()
+                self.update_training_history_status(kernel_ref, status_str, failure_msg)
+
+            is_active = effective_status in ACTIVE_KERNEL_STATUSES if effective_status else None
             if not log_clean and is_active:
                 log_clean = (
-                    f"⚡ PHIÊN CHẠY ĐANG HOẠT ĐỘNG ({status_str})\n"
-                    f"Tài khoản thực thi: @{account_username} | Chủ sở hữu: @{owner}\n"
-                    f"[Ghi chú]: Kaggle đang khởi tạo worker container hoặc chuẩn bị truyền dữ liệu console.\n"
-                    f"Dashboard đang tự động theo dõi và cập nhật logs mỗi 5 giây..."
+                    f"⚡ KHỞI TẠO MÔI TRƯỜNG HUẤN LUYỆN ({effective_status})\n"
+                    f"• Worker Account  : @{account_username} (Kaggle Cloud GPU)\n"
+                    f"• Kernel Ref      : {kernel_ref}\n"
+                    f"• Hardware        : Nvidia Tesla T4 GPU\n"
+                    f"• Trạng thái      : Đang phân bổ tài nguyên CUDA & mount datasets...\n"
+                    f"• Ghi chú         : Dòng log đầu ra (stdout/stderr) sẽ tự động stream ngay khi cell code đầu tiên chạy."
                 )
 
             return {
                 "success": True,
                 "ref": kernel_ref,
-                "status": status_str,
+                "status": effective_status,
                 "status_checked": status_checked,
                 "is_active": is_active,
                 "failure_message": failure_msg,
@@ -2389,7 +2441,10 @@ class KaggleMonitorService:
             except Exception as e:
                 logger.warning("Could not backup copy to @kitnehi1211: %s", e)
 
-        clean_slug = re.sub(r'[^a-zA-Z0-9\-]+', '-', slug.strip().lower()).strip('-')
+        clean_slug = str(slug or "").strip()
+        if "/" in clean_slug:
+            clean_slug = clean_slug.split("/")[-1].strip()
+        clean_slug = re.sub(r'[^a-zA-Z0-9\-]+', '-', clean_slug.lower()).strip('-')
         if not clean_slug:
             clean_slug = "notebook-" + str(int(time.time()))
         
@@ -3947,5 +4002,28 @@ class KaggleMonitorService:
                 json.dump(history, f, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.warning("Could not save training history: %s", e)
+
+    def update_training_history_status(self, kernel_ref, status, failure_message=""):
+        """Update the status of a run record in central training history."""
+        try:
+            if not os.path.exists(HISTORY_FILE):
+                return
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                history = json.load(f)
+            if not isinstance(history, list):
+                return
+            updated = False
+            ref_lower = str(kernel_ref).strip().lower()
+            for h in history:
+                if str(h.get("ref", "")).strip().lower() == ref_lower:
+                    h["status"] = status
+                    if failure_message:
+                        h["failure_message"] = failure_message
+                    updated = True
+            if updated:
+                with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+                    json.dump(history, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning("Could not update training history status for %s: %s", kernel_ref, e)
 
 monitor_service = KaggleMonitorService()

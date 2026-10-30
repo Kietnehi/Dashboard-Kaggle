@@ -279,26 +279,70 @@ Mọi đóng góp nhằm hoàn thiện dự án đều rất được hoan nghê
 
 ---
 
-## 👤 Tác Giả
+## 🔗 Author's GitHub
+
+<div align="center">
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&height=120&section=header"/>
 
 <p align="center">
   <a href="https://github.com/Kietnehi">
-    <img src="https://github.com/Kietnehi.png" width="120" height="120" style="border-radius: 50%; border: 3px solid #8B5CF6;" alt="Truong Phu Kiet"/>
-  </a>
-  <br/>
-  <b>Truong Phu Kiet (@Kietnehi)</b>
-  <br/>
-  <sub>AI & Data Science Enthusiast · Sai Gon University (SGU)</sub>
-  <br/>
-  <a href="https://github.com/Kietnehi">
-    <img src="https://img.shields.io/github/followers/Kietnehi?label=Follow%20%40Kietnehi&style=social" alt="Follow GitHub"/>
+    <img src="https://github.com/Kietnehi.png" width="140" height="140" style="border-radius: 50%; border: 4px solid #A371F7;" alt="Avatar Truong Phu Kiet"/>
   </a>
 </p>
 
----
+<h3>🚀 Truong Phu Kiet (@Kietnehi)</h3>
+
+<a href="https://github.com/Kietnehi">
+  <img src="https://readme-typing-svg.herokuapp.com?font=Fira+Code&pause=1000&color=236AD3&background=00000000&center=true&vCenter=true&width=480&lines=Welcome+to+my+GitHub!;Student+@+Sai+Gon+University;Fullstack+Dev+%26+AI+Researcher;Building+Kaggle+Monitor+Hub" alt="Typing SVG" />
+</a>
+
+<br/><br/>
 
 <p align="center">
-  <b>Nếu dự án này giúp bạn tiết kiệm thời gian và tận dụng tối đa GPU Kaggle, hãy ủng hộ một ⭐ Star nhé!</b>
-  <br/>
-  <i>Made with ❤️ for the Kaggle & AI Community</i>
+  <img src="https://img.shields.io/badge/SGU-Sai_Gon_University-0056D2?style=flat-square&logo=google-scholar&logoColor=white" alt="SGU"/>
+  <img src="https://img.shields.io/badge/Base-Ho_Chi_Minh_City-FF4B4B?style=flat-square&logo=google-maps&logoColor=white" alt="HCMC"/>
 </p>
+
+<p align="center">
+  <a href="https://github.com/Kietnehi?tab=followers">
+    <img src="https://img.shields.io/github/followers/Kietnehi?label=Followers&style=flat-square&logo=github"/>
+  </a>
+  <a href="https://github.com/Kietnehi">
+    <img src="https://img.shields.io/github/stars/Kietnehi?label=Stars&style=flat-square&logo=github"/>
+  </a>
+</p>
+
+<h3>🛠 Tech Stack</h3>
+<p align="center">
+  <a href="https://skillicons.dev">
+    <img src="https://skillicons.dev/icons?i=python,fastapi,tailwind,docker,git,github,pytorch,linux&theme=light" alt="My Skills"/>
+  </a>
+</p>
+<p align="center">
+  <b>Core Technologies:</b> Python 3.10+, FastAPI, Kaggle Official SDK, Tailwind CSS, Lucide, Playwright, Uvicorn
+</p>
+
+<br/>
+
+<h3>🌟 Kaggle Multi-Account Monitor & Training Hub</h3>
+<p align="center">
+  <a href="https://github.com/Kietnehi/Dashboard-Kaggle">
+    <img src="https://img.shields.io/github/stars/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=yellow" alt="Stars"/>
+    <img src="https://img.shields.io/github/forks/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=orange" alt="Forks"/>
+    <img src="https://img.shields.io/github/issues/Kietnehi/Dashboard-Kaggle?style=for-the-badge&color=red" alt="Issues"/>
+  </a>
+</p>
+
+<!-- Dynamic quote -->
+<p align="center">
+  <img src="https://quotes-github-readme.vercel.app/api?type=horizontal&theme=dark" alt="Daily Quote"/>
+</p>
+
+<p align="center">
+  <i>Thank you for visiting! Don’t forget to click <b>⭐️ Star</b> to support the project.</i>
+</p>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&height=80&section=footer"/>
+
+</div>
