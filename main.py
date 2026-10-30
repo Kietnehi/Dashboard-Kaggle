@@ -151,6 +151,7 @@ class KernelRunRequest(BaseModel):
     dataset_sources: Optional[List[str]] = []
     kernel_sources: Optional[List[str]] = []
     competition_sources: Optional[List[str]] = []
+    model_sources: Optional[List[str]] = []
     is_notebook: Optional[bool] = True
     language: Optional[str] = "python"
     session_timeout_seconds: Optional[int] = None
@@ -406,10 +407,11 @@ def get_runner_recommendations():
 @app.get("/api/runner/notebook-meta")
 def get_runner_notebook_meta(
     account: str = Query(...),
-    ref: str = Query(...)
+    ref: str = Query(...),
+    version: Optional[int] = Query(None, description="Số phiên bản cụ thể (mặc định lấy mới nhất)")
 ):
     """Fetch existing notebook source code and metadata to pre-populate training form."""
-    return monitor_service.get_notebook_source_and_meta(account, ref)
+    return monitor_service.get_notebook_source_and_meta(account, ref, version=version)
 
 @app.get("/api/runner/local-notebooks")
 def get_local_notebooks():
@@ -443,6 +445,7 @@ def run_notebook(req: KernelRunRequest):
         dataset_sources=req.dataset_sources,
         kernel_sources=req.kernel_sources,
         competition_sources=req.competition_sources,
+        model_sources=req.model_sources,
         is_notebook=req.is_notebook,
         language=req.language,
         session_timeout_seconds=req.session_timeout_seconds,

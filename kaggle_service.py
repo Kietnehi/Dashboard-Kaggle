@@ -2333,7 +2333,36 @@ class KaggleMonitorService:
 
         return {"success": True, "message": "Đã xóa lượt chạy khỏi Sổ cái huấn luyện!"}
 
-    def get_notebook_source_and_meta(self, account_username, kernel_ref):
+    def clean_input_source(self, item):
+        """Parse and normalize input URLs or ref strings into (type, clean_ref)."""
+        s = str(item or "").strip()
+        s = re.sub(r'[\?\#].*$', '', s).strip('/')
+        # Model URLs with 4 parts (optionally followed by /version_number)
+        m_m4 = re.search(r'kaggle\.com/models/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)(?:/\d+)?', s)
+        if m_m4:
+            return 'model', f"{m_m4.group(1)}/{m_m4.group(2)}/{m_m4.group(3)}/{m_m4.group(4)}"
+        # Kernel URLs
+        m_c = re.search(r'kaggle\.com/code/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
+        if m_c:
+            return 'kernel', f"{m_c.group(1)}/{m_c.group(2)}"
+        # Dataset URLs
+        m_d = re.search(r'kaggle\.com/datasets/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
+        if m_d:
+            return 'dataset', f"{m_d.group(1)}/{m_d.group(2)}"
+        # Competition URLs
+        m_comp = re.search(r'kaggle\.com/competitions/([a-zA-Z0-9_\-]+)', s)
+        if m_comp:
+            return 'competition', m_comp.group(1)
+        # Plain string model ref (4 parts: owner/model/framework/variation)
+        if not s.startswith("http") and "/" in s:
+            parts = [p.strip() for p in s.split("/") if p.strip()]
+            if len(parts) == 4:
+                return 'model', "/".join(parts)
+            elif len(parts) == 5 and parts[4].isdigit():
+                return 'model', "/".join(parts[:4])
+        return None, s
+
+    def get_notebook_source_and_meta(self, account_username, kernel_ref, version=None):
         """Fetch full source code and metadata of an existing kernel for runner pre-fill."""
         target_cred = self.get_credential_by_username(account_username)
         if not target_cred:
@@ -2358,6 +2387,8 @@ class KaggleMonitorService:
                     req_meta = ApiGetKernelRequest()
                     req_meta.user_name = owner
                     req_meta.kernel_slug = slug
+                    if version is not None:
+                        req_meta.version_label = f"v{version}" if str(version).isdigit() else str(version)
                     res = client.kernels.kernels_api_client.get_kernel(req_meta)
                     if not res:
                         return {"success": False, "message": "Không tìm thấy notebook trên Kaggle"}
@@ -2374,6 +2405,14 @@ class KaggleMonitorService:
                     elif not machine_shape and meta.get("enableTpu"):
                         machine_shape = "Tpu1VmV38"
 
+                    current_head_v = meta.get("currentVersionNumber", 1) or 1
+                    try:
+                        loaded_v = int(version) if version is not None else current_head_v
+                    except Exception:
+                        loaded_v = current_head_v
+
+                    model_srcs = meta.get("modelDataSources", []) or meta.get("modelSources", []) or []
+
                     return {
                         "success": True,
                         "ref": f"{owner}/{slug}",
@@ -2388,9 +2427,12 @@ class KaggleMonitorService:
                         "enable_tpu": meta.get("enableTpu", False),
                         "enable_internet": meta.get("enableInternet", True),
                         "machine_shape": machine_shape,
+                        "current_head_version": current_head_v,
+                        "loaded_version": loaded_v,
                         "dataset_sources": meta.get("datasetDataSources", []) or [],
                         "kernel_sources": meta.get("kernelDataSources", []) or [],
                         "competition_sources": meta.get("competitionDataSources", []) or [],
+                        "model_sources": model_srcs,
                         "source_code": source,
                     }
             except Exception as e:
@@ -2409,6 +2451,7 @@ class KaggleMonitorService:
         dataset_sources: list = None,
         kernel_sources: list = None,
         competition_sources: list = None,
+        model_sources: list = None,
         is_notebook: bool = True,
         language: str = "python",
         session_timeout_seconds: int = None,
@@ -2433,6 +2476,7 @@ class KaggleMonitorService:
                     dataset_sources=dataset_sources,
                     kernel_sources=kernel_sources,
                     competition_sources=competition_sources,
+                    model_sources=model_sources,
                     is_notebook=is_notebook,
                     language=language,
                     backup_to_master=False
@@ -2536,58 +2580,46 @@ class KaggleMonitorService:
                     if session_timeout_seconds and session_timeout_seconds > 0:
                         request.session_timeout_seconds = int(session_timeout_seconds)
 
-                    # Robust source cleaner & URL normalizer (handles https://www.kaggle.com/code/... and https://www.kaggle.com/datasets/...)
+                    # Robust source cleaner & URL normalizer (handles code, datasets, competitions, models)
                     raw_datasets = dataset_sources or []
                     raw_kernels = kernel_sources or []
                     raw_comps = competition_sources or []
+                    raw_models = model_sources or []
 
                     final_datasets = []
                     final_kernels = []
                     final_comps = []
+                    final_models = []
 
-                    def _clean_source(item):
-                        s = str(item or "").strip()
-                        s = re.sub(r'[\?\#].*$', '', s).strip('/')
-                        m_c = re.search(r'kaggle\.com/code/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
-                        if m_c:
-                            return 'kernel', f"{m_c.group(1)}/{m_c.group(2)}"
-                        m_d = re.search(r'kaggle\.com/datasets/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
-                        if m_d:
-                            return 'dataset', f"{m_d.group(1)}/{m_d.group(2)}"
-                        m_comp = re.search(r'kaggle\.com/competitions/([a-zA-Z0-9_\-]+)', s)
-                        if m_comp:
-                            return 'competition', m_comp.group(1)
-                        m_m = re.search(r'kaggle\.com/models/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
-                        if m_m:
-                            return 'dataset', f"{m_m.group(1)}/{m_m.group(2)}"
-                        return None, s
+                    def _route_source(item, fallback_type):
+                        stype, sval = self.clean_input_source(item)
+                        effective_type = stype or fallback_type
+                        if not sval:
+                            return
+                        if effective_type == 'kernel':
+                            final_kernels.append(sval)
+                        elif effective_type == 'dataset':
+                            final_datasets.append(sval)
+                        elif effective_type == 'competition':
+                            final_comps.append(sval)
+                        elif effective_type == 'model':
+                            final_models.append(sval)
+                        elif sval:
+                            final_datasets.append(sval)
 
                     for item in raw_datasets:
-                        stype, sval = _clean_source(item)
-                        if stype == 'kernel':
-                            final_kernels.append(sval)
-                        elif stype == 'competition':
-                            final_comps.append(sval)
-                        elif sval:
-                            final_datasets.append(sval)
-
+                        _route_source(item, 'dataset')
                     for item in raw_kernels:
-                        stype, sval = _clean_source(item)
-                        if stype == 'dataset':
-                            final_datasets.append(sval)
-                        elif stype == 'competition':
-                            final_comps.append(sval)
-                        elif sval:
-                            final_kernels.append(sval)
-
+                        _route_source(item, 'kernel')
                     for item in raw_comps:
-                        stype, sval = _clean_source(item)
-                        if sval:
-                            final_comps.append(sval)
+                        _route_source(item, 'competition')
+                    for item in raw_models:
+                        _route_source(item, 'model')
 
                     final_datasets = list(dict.fromkeys(final_datasets))
                     final_kernels = list(dict.fromkeys(final_kernels))
                     final_comps = list(dict.fromkeys(final_comps))
+                    final_models = list(dict.fromkeys(final_models))
 
                     # Auto-share private datasets across accounts if needed!
                     auto_shared_notes = []
@@ -2614,6 +2646,8 @@ class KaggleMonitorService:
                         request.kernel_data_sources = final_kernels
                     if final_comps:
                         request.competition_data_sources = final_comps
+                    if final_models:
+                        request.model_data_sources = final_models
 
                     response = client.kernels.kernels_api_client.save_kernel(request)
 
