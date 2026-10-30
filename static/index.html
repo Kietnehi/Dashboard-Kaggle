@@ -898,6 +898,56 @@
               </div>
             </div>
 
+            <!-- Step: Notebook Studio (Soạn thảo, Thêm/Sửa/Xóa Cells & Raw Script) -->
+            <div id="trainerNotebookStudioSection" class="pt-3 border-t border-slate-100">
+              <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <label class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">★</span>
+                    <span>Notebook Studio: Chỉnh Sửa & Quản Lý Phiên Bản</span>
+                  </label>
+                  <span id="studioCellsCountBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">0 cells</span>
+                  <span id="studioVersionTargetBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                    <i data-lucide="git-branch" class="w-3 h-3 text-purple-600"></i>
+                    <span id="studioVersionTargetText">Phiên bản: Mới</span>
+                  </span>
+                </div>
+
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <button type="button" id="btnStudioAddCodeCell" onclick="addStudioCell('code')" class="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Thêm một ô code Python mới">
+                    <i data-lucide="plus" class="w-3 h-3 text-indigo-600"></i> + Ô Code
+                  </button>
+                  <button type="button" id="btnStudioAddMdCell" onclick="addStudioCell('markdown')" class="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Thêm ô ghi chú Markdown">
+                    <i data-lucide="file-text" class="w-3 h-3 text-slate-600"></i> + Ô Markdown
+                  </button>
+                  <button type="button" id="btnStudioToggleCollapseAll" onclick="toggleAllStudioCells()" class="px-2 py-1 text-xs text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg flex items-center gap-1 cursor-pointer" title="Thu gọn hoặc mở rộng toàn bộ các ô cell">
+                    <i data-lucide="chevrons-up-down" class="w-3 h-3"></i>
+                  </button>
+                  <button type="button" id="btnStudioToggleViewMode" onclick="toggleStudioViewMode()" class="px-2.5 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Chuyển đổi giữa giao diện từng ô Cell và toàn văn Raw Script">
+                    <i data-lucide="code" class="w-3 h-3 text-purple-600"></i> <span id="studioViewModeLabel">Chế độ Raw Script</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Interactive Cells View Container -->
+              <div id="trainerStudioCellsContainer" class="space-y-2.5">
+                <div id="trainerStudioCellsList" class="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
+                  <div class="p-6 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                    <i data-lucide="file-code" class="w-6 h-6 text-slate-300 mx-auto mb-1"></i>
+                    <span>Chưa có mã nguồn notebook. Chọn notebook từ Dự Án, Kéo Thả File hoặc bấm <strong>"+ Ô Code"</strong> để soạn thảo mới.</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Raw Script View Container (Hidden by default) -->
+              <div id="trainerStudioRawContainer" class="hidden space-y-2">
+                <div class="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                  <span>Soạn thảo Raw Script (Phân cách ô cell bằng cú pháp tiêu chuẩn <code class="bg-slate-100 text-purple-700 px-1 py-0.5 rounded font-mono font-bold"># %%</code> hoặc <code class="bg-slate-100 text-purple-700 px-1 py-0.5 rounded font-mono font-bold"># %% [markdown]</code>):</span>
+                </div>
+                <textarea id="trainerRawSourceTextarea" oninput="onTrainerRawSourceInput(this.value)" rows="14" placeholder="# Viết code Python hoặc dán notebook script tại đây...&#10;# %%&#10;import numpy as np&#10;print('Hello Kaggle')" class="w-full text-xs font-mono bg-slate-900 text-emerald-300 p-3.5 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 leading-relaxed shadow-inner"></textarea>
+              </div>
+            </div>
+
             <!-- Step 3: Chọn Tài khoản Thực thi (Runner Account & Smart Recommender) -->
             <div class="pt-3 border-t border-slate-100">
               <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
@@ -1090,29 +1140,29 @@
 
             <!-- Pipeline 4-Step Stepper -->
             <div id="activeRunStepperContainer" class="hidden py-1.5 px-3 bg-slate-50 border border-slate-200/80 rounded-lg">
-              <div class="flex items-center justify-between text-[11px] font-semibold">
-                <div id="stepPush" class="flex items-center gap-1 text-emerald-600">
+              <div class="flex items-center justify-between text-[11px] font-semibold gap-1">
+                <div id="stepPush" class="flex items-center gap-1 text-emerald-600 flex-shrink-0 whitespace-nowrap">
                   <i data-lucide="check-circle-2" class="w-3.5 h-3.5 flex-shrink-0"></i>
                   <span>1. Đẩy Code</span>
                 </div>
-                <div class="h-0.5 flex-1 mx-2 bg-slate-200">
+                <div class="h-1 flex-1 mx-1.5 bg-slate-200 rounded-full overflow-hidden min-w-[12px]">
                   <div id="barStep1" class="h-full bg-emerald-500 w-full transition-all duration-300"></div>
                 </div>
-                <div id="stepQueued" class="flex items-center gap-1 text-slate-400">
+                <div id="stepQueued" class="flex items-center gap-1 text-slate-400 flex-shrink-0 whitespace-nowrap">
                   <i id="iconQueued" data-lucide="loader" class="w-3.5 h-3.5 flex-shrink-0"></i>
                   <span>2. Khởi tạo VM</span>
                 </div>
-                <div class="h-0.5 flex-1 mx-2 bg-slate-200">
+                <div class="h-1 flex-1 mx-1.5 bg-slate-200 rounded-full overflow-hidden min-w-[12px]">
                   <div id="barStep2" class="h-full bg-slate-200 w-0 transition-all duration-300"></div>
                 </div>
-                <div id="stepRunning" class="flex items-center gap-1 text-slate-400">
+                <div id="stepRunning" class="flex items-center gap-1 text-slate-400 flex-shrink-0 whitespace-nowrap">
                   <i id="iconRunning" data-lucide="cpu" class="w-3.5 h-3.5 flex-shrink-0"></i>
                   <span>3. Huấn Luyện GPU</span>
                 </div>
-                <div class="h-0.5 flex-1 mx-2 bg-slate-200">
+                <div class="h-1 flex-1 mx-1.5 bg-slate-200 rounded-full overflow-hidden min-w-[12px]">
                   <div id="barStep3" class="h-full bg-slate-200 w-0 transition-all duration-300"></div>
                 </div>
-                <div id="stepDone" class="flex items-center gap-1 text-slate-400">
+                <div id="stepDone" class="flex items-center gap-1 text-slate-400 flex-shrink-0 whitespace-nowrap">
                   <i id="iconDone" data-lucide="check" class="w-3.5 h-3.5 flex-shrink-0"></i>
                   <span>4. Xong</span>
                 </div>
@@ -1127,29 +1177,32 @@
               </div>
             </div>
 
-            <!-- Control Buttons (Cancel, Refresh Log, Copy Link, Open Kaggle) -->
-            <div id="activeRunControls" class="hidden pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-              <button id="btnActiveRefreshLog" onclick="pollActiveRunOutput(true)" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
-                <i id="iconActiveRefresh" data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                <span id="textActiveRefresh">Cập nhật Log</span>
-              </button>
-              <div class="flex items-center gap-2 flex-wrap">
-                <button type="button" onclick="resetTrainerForm()" class="px-3 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0" title="Đặt lại form bên trái để cấu hình một lượt chạy mới">
-                  <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-purple-600"></i>
-                  <span>Nhập Lượt Mới</span>
+            <!-- Control Buttons (Cancel, Refresh Log, Open Kaggle, Delete) -->
+            <div id="activeRunControls" class="hidden pt-3 border-t border-slate-100">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <!-- 1. Refresh log -->
+                <button id="btnActiveRefreshLog" onclick="pollActiveRunOutput(true)" class="w-full px-2.5 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs" title="Cập nhật luồng log console mới nhất">
+                  <i id="iconActiveRefresh" data-lucide="refresh-cw" class="w-3.5 h-3.5 text-slate-600"></i>
+                  <span id="textActiveRefresh" class="truncate">Cập nhật Log</span>
                 </button>
-                <button id="btnActiveCopyLink" onclick="copyCurrentNotebookLink()" class="px-3 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0" title="Sao chép đường link notebook Kaggle vào clipboard">
-                  <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy Link
-                </button>
-                <button id="btnActiveCancel" onclick="cancelActiveRun()" class="px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0" title="Dừng phiên chạy đang thực thi">
-                  <i data-lucide="square" class="w-3 h-3 fill-current"></i> Dừng Chạy
-                </button>
-                <button id="btnActiveDelete" onclick="deleteCurrentNotebook()" class="px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap flex-shrink-0" title="Xóa vĩnh viễn notebook này khỏi tài khoản Kaggle">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-600"></i> Xóa Notebook
-                </button>
-                <a id="btnActiveKaggleLink" href="#" target="_blank" class="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg flex items-center gap-1.5 transition-colors whitespace-nowrap flex-shrink-0">
-                  <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Xem trên Kaggle ↗
+
+                <!-- 2. Open Kaggle Notebook -->
+                <a id="btnActiveKaggleLink" href="#" target="_blank" class="w-full px-2.5 py-2 text-xs font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-2xs" title="Mở trang notebook trực tiếp trên Kaggle">
+                  <i data-lucide="external-link" class="w-3.5 h-3.5 text-blue-600"></i>
+                  <span class="truncate">Xem Kaggle ↗</span>
                 </a>
+
+                <!-- 3. Stop Run -->
+                <button id="btnActiveCancel" onclick="cancelActiveRun()" class="w-full px-2.5 py-2 text-xs font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs" title="Dừng phiên chạy đang thực thi">
+                  <i data-lucide="square" class="w-3 h-3 fill-current text-amber-600"></i>
+                  <span class="truncate">Dừng Chạy</span>
+                </button>
+
+                <!-- 4. Delete Notebook -->
+                <button id="btnActiveDelete" onclick="deleteCurrentNotebook()" class="w-full px-2.5 py-2 text-xs font-bold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs" title="Xóa vĩnh viễn notebook này khỏi tài khoản Kaggle">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-600"></i>
+                  <span class="truncate">Xóa Notebook</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1158,7 +1211,7 @@
           <div id="trainerConsoleWrapper" class="bg-[#0b0f19] border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col h-[540px] transition-all duration-200 relative group">
             
             <!-- Terminal Top Window Header (macOS / IDE Pro Dark Theme) -->
-            <div class="bg-[#070a10] px-3.5 py-2.5 border-b border-slate-800/90 flex items-center justify-between text-xs text-slate-300 gap-2 flex-nowrap">
+            <div class="bg-[#070a10] px-3 py-2 border-b border-slate-800/90 flex items-center justify-between text-xs text-slate-300 gap-1.5 flex-nowrap">
               <!-- Left: Window Dots + Title + Stats + Auto badge -->
               <div class="flex items-center gap-2 font-mono min-w-0 flex-shrink-0">
                 <!-- Mac-style Traffic Light Dots -->
@@ -1174,44 +1227,45 @@
                 <span id="logAutoPollBadge" class="text-[10px] font-semibold px-1.5 py-0.5 rounded border font-mono whitespace-nowrap flex-shrink-0 transition-colors bg-emerald-950/90 text-emerald-400 border-emerald-800/80">Auto: 4s</span>
               </div>
 
-              <!-- Right: Search Bar + Action Buttons (Strictly whitespace-nowrap) -->
+              <!-- Right: Search Bar + Action Buttons (Compact Toolset with tooltips) -->
               <div class="flex items-center gap-1 flex-shrink-0 font-mono">
                 <!-- Quick Search Toggle / Input -->
                 <div class="relative flex items-center">
-                  <button type="button" id="btnToggleSearch" onclick="toggleTerminalSearchInput()" class="text-slate-400 hover:text-purple-300 p-1.5 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer text-xs flex-shrink-0" title="Tìm kiếm / Lọc log">
-                    <i data-lucide="search" class="w-3 h-3"></i>
+                  <button type="button" id="btnToggleSearch" onclick="toggleTerminalSearchInput()" class="text-slate-400 hover:text-purple-300 w-7 h-7 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer flex items-center justify-center flex-shrink-0" title="Tìm kiếm / Lọc log">
+                    <i data-lucide="search" class="w-3.5 h-3.5"></i>
                   </button>
                   <div id="terminalSearchContainer" class="hidden absolute right-0 top-1/2 -translate-y-1/2 z-30 flex items-center bg-slate-900 border border-purple-500/80 rounded-md shadow-xl px-1.5 py-0.5">
                     <i data-lucide="search" class="w-3 h-3 text-purple-400 mr-1 flex-shrink-0"></i>
-                    <input type="text" id="terminalSearchInput" oninput="onTerminalSearchInput(this.value)" placeholder="Tìm kiếm log..." class="w-36 bg-transparent text-[11px] font-mono text-slate-200 placeholder-slate-500 focus:outline-none">
+                    <input type="text" id="terminalSearchInput" oninput="onTerminalSearchInput(this.value)" placeholder="Tìm kiếm log..." class="w-32 bg-transparent text-[11px] font-mono text-slate-200 placeholder-slate-500 focus:outline-none">
                     <button type="button" onclick="toggleTerminalSearchInput(false)" class="text-slate-400 hover:text-slate-200 ml-1">
                       <i data-lucide="x" class="w-3 h-3"></i>
                     </button>
                   </div>
                 </div>
                 <!-- Clear Button -->
-                <button type="button" onclick="clearTrainerConsoleLog()" class="text-slate-400 hover:text-slate-200 p-1.5 sm:px-2 sm:py-1 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer text-[11px] font-mono flex items-center gap-1 flex-shrink-0" title="Xóa màn hình log tạm thời">
-                  <i data-lucide="trash-2" class="w-3 h-3"></i> <span class="hidden xl:inline">Xóa</span>
+                <button type="button" onclick="clearTrainerConsoleLog()" class="text-slate-400 hover:text-rose-400 w-7 h-7 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer flex items-center justify-center flex-shrink-0" title="Xóa màn hình log tạm thời">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                 </button>
                 <!-- Copy Button -->
-                <button type="button" onclick="copyTrainerConsoleLog()" class="text-slate-400 hover:text-slate-200 p-1.5 sm:px-2 sm:py-1 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer text-[11px] font-mono flex items-center gap-1 flex-shrink-0" title="Sao chép toàn bộ log">
-                  <i data-lucide="copy" class="w-3 h-3"></i> <span class="hidden xl:inline">Copy</span>
+                <button type="button" onclick="copyTrainerConsoleLog()" class="text-slate-400 hover:text-emerald-400 w-7 h-7 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer flex items-center justify-center flex-shrink-0" title="Sao chép toàn bộ log">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                 </button>
                 <!-- AutoScroll Button -->
-                <button type="button" onclick="toggleTrainerLogAutoScroll()" id="btnTrainerAutoScroll" class="text-emerald-400 hover:text-emerald-300 p-1.5 sm:px-2 sm:py-1 rounded bg-emerald-950/80 border border-emerald-800/80 text-[11px] font-mono cursor-pointer transition-colors flex-shrink-0 flex items-center gap-1" title="Bật/Tắt tự động cuộn">
-                  <i data-lucide="arrow-down-circle" class="w-3 h-3"></i> <span class="hidden md:inline">Cuộn: BẬT</span>
+                <button type="button" onclick="toggleTrainerLogAutoScroll()" id="btnTrainerAutoScroll" class="text-emerald-400 hover:text-emerald-300 px-1.5 h-7 rounded bg-emerald-950/80 border border-emerald-800/80 text-[10px] font-mono cursor-pointer transition-colors flex-shrink-0 flex items-center gap-1" title="Tự động cuộn xuống cuối log (đang BẬT)">
+                  <i data-lucide="arrow-down-circle" class="w-3.5 h-3.5"></i>
+                  <span class="hidden 2xl:inline">Cuộn</span>
                 </button>
                 <!-- Expand / Fullscreen Button -->
-                <button type="button" onclick="toggleConsoleExpand()" id="btnConsoleExpand" class="text-slate-400 hover:text-purple-300 p-1.5 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer text-xs flex-shrink-0" title="Toàn màn hình (ESC để thoát)">
+                <button type="button" onclick="toggleConsoleExpand()" id="btnConsoleExpand" class="text-slate-400 hover:text-purple-300 w-7 h-7 rounded bg-slate-900/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer flex items-center justify-center flex-shrink-0" title="Toàn màn hình / Thu nhỏ (ESC để thoát)">
                   <i id="iconConsoleExpand" data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
                 </button>
               </div>
             </div>
 
             <!-- Notebook Switcher Bar (Sleek Single-Line Toolbar) -->
-            <div class="bg-[#090d16] px-3.5 py-1.5 border-b border-slate-800 flex items-center gap-2 text-xs">
+            <div class="bg-[#090d16] px-3 py-1.5 border-b border-slate-800 flex items-center gap-2 text-xs">
               <label for="consoleNotebookSelect" class="text-purple-400 font-semibold text-[11px] font-mono flex items-center gap-1 flex-shrink-0 whitespace-nowrap">
-                <i data-lucide="layers" class="w-3.5 h-3.5"></i> Kênh Log:
+                <i data-lucide="layers" class="w-3.5 h-3.5"></i> Kênh:
               </label>
               <div class="relative flex-1 min-w-0">
                 <select id="consoleNotebookSelect" onchange="onSelectConsoleNotebook(this.value)" class="w-full bg-slate-950 border border-slate-700/80 hover:border-slate-600 rounded-lg px-2.5 py-1 text-slate-100 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-purple-500 cursor-pointer shadow-inner truncate pr-6">
@@ -4562,7 +4616,7 @@
     let trainerSourceMode = 'local'; // 'local' (default), 'upload', or 'cached'
     let currentTrainerSourceCode = '';
     let trainerIsNotebook = true;
-    let selectedInputSources = []; // array of { type: 'dataset'|'kernel', ref: string, title: string }
+    let selectedInputSources = []; // array of { type: 'dataset'|'kernel'|'model'|'competition', ref: string, title: string }
     let trainerRecommendations = [];
     let localNotebooksList = [];
     let currentActiveRun = null;
@@ -4570,6 +4624,390 @@
     let trainerActiveRunSeconds = 0;
     let trainerLogAutoScroll = true;
     let searchSuggestionsDebounceTimer = null;
+
+    // ==================== NOTEBOOK STUDIO STATE & FUNCTIONS ====================
+    let studioCells = []; // array of { id, type: 'code'|'markdown', source, isCollapsed: false }
+    let studioViewMode = 'cells'; // 'cells' or 'raw'
+    let studioTargetVersionInfo = null; // { loadedVersion, currentHeadVersion, ref, owner, slug }
+    let allStudioCellsCollapsed = false;
+
+    function generateCellId() {
+      return 'cell_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    function updateStudioBadges() {
+      const countBadge = document.getElementById('studioCellsCountBadge');
+      if (countBadge) {
+        const codeCount = studioCells.filter(c => c.type === 'code').length;
+        const mdCount = studioCells.filter(c => c.type === 'markdown').length;
+        countBadge.innerText = `${studioCells.length} cells (${codeCount} code, ${mdCount} md)`;
+      }
+
+      const verBadge = document.getElementById('studioVersionTargetBadge');
+      const verText = document.getElementById('studioVersionTargetText');
+      if (verBadge && verText) {
+        if (studioTargetVersionInfo) {
+          const nextVer = (studioTargetVersionInfo.currentHeadVersion || 1) + 1;
+          verBadge.classList.remove('hidden');
+          verText.innerText = `Kế thừa: v${studioTargetVersionInfo.loadedVersion || 1} ➔ Sẽ tạo: v${nextVer}`;
+        } else {
+          verBadge.classList.add('hidden');
+        }
+      }
+    }
+
+    function syncSourceCodeToStudio(rawSource, isNotebook = true) {
+      studioCells = [];
+      const text = (rawSource || '').trim();
+      if (!text) {
+        renderStudioCells();
+        updateStudioBadges();
+        return;
+      }
+
+      let parsedSuccessfully = false;
+      if (text.startsWith('{')) {
+        try {
+          const nb = JSON.parse(text);
+          if (nb && Array.isArray(nb.cells)) {
+            studioCells = nb.cells.map(c => {
+              let src = c.source || '';
+              if (Array.isArray(src)) src = src.join('');
+              return {
+                id: generateCellId(),
+                type: (c.cell_type === 'markdown') ? 'markdown' : 'code',
+                source: src,
+                isCollapsed: false
+              };
+            });
+            parsedSuccessfully = true;
+          }
+        } catch (e) {
+          console.warn('JSON parse warning in syncSourceCodeToStudio, falling back to script delimiter:', e);
+        }
+      }
+
+      if (!parsedSuccessfully) {
+        const blocks = text.split(/(?=^#\s*%%\s*(?:\[markdown\])?)/m);
+        if (blocks.length > 1) {
+          blocks.forEach(b => {
+            const trimmed = b.trim();
+            if (!trimmed) return;
+            const isMd = /^#\s*%%\s*\[markdown\]/i.test(trimmed);
+            const cleanContent = trimmed.replace(/^#\s*%%\s*(?:\[markdown\])?\r?\n?/i, '');
+            studioCells.push({
+              id: generateCellId(),
+              type: isMd ? 'markdown' : 'code',
+              source: cleanContent,
+              isCollapsed: false
+            });
+          });
+        } else {
+          studioCells.push({
+            id: generateCellId(),
+            type: 'code',
+            source: text,
+            isCollapsed: false
+          });
+        }
+      }
+
+      renderStudioCells();
+      updateStudioBadges();
+
+      const rawTextarea = document.getElementById('trainerRawSourceTextarea');
+      if (rawTextarea) {
+        rawTextarea.value = getStudioAsRawScript();
+      }
+    }
+
+    function syncStudioToSourceCode() {
+      if (studioCells.length === 0) {
+        currentTrainerSourceCode = '';
+        return;
+      }
+
+      const nbFormat = {
+        cells: studioCells.map(c => {
+          const lines = (c.source || '').split('\n').map((l, idx, arr) => idx < arr.length - 1 ? l + '\n' : l);
+          if (c.type === 'markdown') {
+            return {
+              cell_type: 'markdown',
+              metadata: {},
+              source: lines
+            };
+          } else {
+            return {
+              cell_type: 'code',
+              execution_count: null,
+              metadata: {},
+              outputs: [],
+              source: lines
+            };
+          }
+        }),
+        metadata: {
+          language_info: { name: 'python' }
+        },
+        nbformat: 4,
+        nbformat_minor: 4
+      };
+
+      currentTrainerSourceCode = JSON.stringify(nbFormat, null, 1);
+
+      const rawTextarea = document.getElementById('trainerRawSourceTextarea');
+      if (rawTextarea && studioViewMode === 'cells') {
+        rawTextarea.value = getStudioAsRawScript();
+      }
+    }
+
+    function getStudioAsRawScript() {
+      return studioCells.map(c => {
+        const marker = (c.type === 'markdown') ? '# %% [markdown]' : '# %%';
+        return `${marker}\n${c.source || ''}`;
+      }).join('\n\n');
+    }
+
+    function onTrainerRawSourceInput(val) {
+      const text = (val || '');
+      const blocks = text.split(/(?=^#\s*%%\s*(?:\[markdown\])?)/m);
+      studioCells = [];
+      blocks.forEach(b => {
+        const trimmed = b.trim();
+        if (!trimmed) return;
+        const isMd = /^#\s*%%\s*\[markdown\]/i.test(trimmed);
+        const cleanContent = trimmed.replace(/^#\s*%%\s*(?:\[markdown\])?\r?\n?/i, '');
+        studioCells.push({
+          id: generateCellId(),
+          type: isMd ? 'markdown' : 'code',
+          source: cleanContent,
+          isCollapsed: false
+        });
+      });
+      syncStudioToSourceCode();
+      updateStudioBadges();
+    }
+
+    function renderStudioCells() {
+      const container = document.getElementById('trainerStudioCellsList');
+      if (!container) return;
+
+      if (studioCells.length === 0) {
+        container.innerHTML = `
+          <div class="p-6 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+            <i data-lucide="file-code" class="w-6 h-6 text-slate-300 mx-auto mb-1"></i>
+            <span>Chưa có mã nguồn notebook. Chọn notebook từ Dự Án, Kéo Thả File hoặc bấm <strong class="text-indigo-600 cursor-pointer" onclick="addStudioCell('code')">+ Ô Code</strong> để soạn thảo mới.</span>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = studioCells.map((cell, idx) => {
+        const isCode = (cell.type === 'code');
+        const borderColor = isCode ? 'border-slate-200 hover:border-indigo-300' : 'border-amber-200 hover:border-amber-300';
+        const typeBadge = isCode
+          ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">CODE</span>'
+          : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 font-mono">MARKDOWN</span>';
+
+        const linesCount = (cell.source || '').split('\n').length;
+        const previewText = cell.source ? cell.source.split('\n')[0].substring(0, 70) : '(Ô trống)';
+
+        return `
+          <div id="studio-cell-card-${idx}" class="bg-white border ${borderColor} rounded-xl shadow-2xs transition-all overflow-hidden">
+            <!-- Cell Header Toolbar -->
+            <div class="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2 text-xs">
+              <div class="flex items-center gap-2 truncate">
+                <span class="font-bold text-slate-700 text-[11px] font-mono">#${idx + 1}</span>
+                ${typeBadge}
+                <span class="text-[10px] text-slate-400 font-mono truncate max-w-xs">${linesCount} dòng</span>
+                ${cell.isCollapsed ? `<span class="text-[11px] text-slate-500 italic truncate max-w-sm ml-1 font-mono">${escapeHtml(previewText)}</span>` : ''}
+              </div>
+
+              <div class="flex items-center gap-1 flex-shrink-0">
+                <!-- Change Type -->
+                <button type="button" onclick="updateStudioCellType(${idx}, '${isCode ? 'markdown' : 'code'}')" class="px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-600 hover:bg-slate-200 transition-colors" title="Đổi sang ${isCode ? 'Markdown' : 'Code'}">
+                  ${isCode ? 'Sang MD' : 'Sang Code'}
+                </button>
+                <!-- Move Up -->
+                <button type="button" onclick="moveStudioCell(${idx}, -1)" ${idx === 0 ? 'disabled class="p-1 text-slate-300 cursor-not-allowed"' : 'class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer"'} title="Di chuyển lên trên">
+                  <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
+                </button>
+                <!-- Move Down -->
+                <button type="button" onclick="moveStudioCell(${idx}, 1)" ${idx === studioCells.length - 1 ? 'disabled class="p-1 text-slate-300 cursor-not-allowed"' : 'class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer"'} title="Di chuyển xuống dưới">
+                  <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                </button>
+                <!-- Toggle Collapse -->
+                <button type="button" onclick="toggleStudioCellCollapse(${idx})" class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer" title="${cell.isCollapsed ? 'Mở rộng' : 'Thu gọn'}">
+                  <i data-lucide="${cell.isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-3.5 h-3.5"></i>
+                </button>
+                <!-- Add cell below -->
+                <button type="button" onclick="addStudioCell('code', ${idx + 1})" class="p-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer" title="Thêm ô code ngay bên dưới">
+                  <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                </button>
+                <!-- Delete -->
+                <button type="button" onclick="deleteStudioCell(${idx})" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer" title="Xóa ô này">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Cell Body (Textarea) -->
+            <div class="${cell.isCollapsed ? 'hidden' : 'p-2.5 bg-slate-900/5'}">
+              <textarea 
+                id="studio-cell-textarea-${idx}" 
+                oninput="updateStudioCellSource(${idx}, this.value)" 
+                onkeydown="handleStudioCellKeydown(event, this)"
+                rows="${Math.max(3, Math.min(16, linesCount + 1))}" 
+                placeholder="${isCode ? '# Viết mã Python tại đây...' : '### Viết ghi chú Markdown tại đây...'}" 
+                class="w-full text-xs font-mono p-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed shadow-inner"
+              >${escapeHtml(cell.source || '')}</textarea>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function handleStudioCellKeydown(e, textarea) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const val = textarea.value;
+        textarea.value = val.substring(0, start) + '    ' + val.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + 4;
+        textarea.dispatchEvent(new Event('input'));
+      }
+    }
+
+    function addStudioCell(type = 'code', atIndex = null) {
+      const newCell = {
+        id: generateCellId(),
+        type: type,
+        source: '',
+        isCollapsed: false
+      };
+
+      if (atIndex !== null && atIndex >= 0 && atIndex <= studioCells.length) {
+        studioCells.splice(atIndex, 0, newCell);
+      } else {
+        studioCells.push(newCell);
+      }
+
+      syncStudioToSourceCode();
+      renderStudioCells();
+      updateStudioBadges();
+
+      // Focus the newly created cell
+      const targetIdx = (atIndex !== null && atIndex >= 0) ? atIndex : studioCells.length - 1;
+      setTimeout(() => {
+        const ta = document.getElementById(`studio-cell-textarea-${targetIdx}`);
+        if (ta) {
+          ta.focus();
+          ta.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 50);
+
+      showToast(`Đã thêm ô ${type === 'code' ? 'Code' : 'Markdown'} mới!`, 'info');
+    }
+
+    function deleteStudioCell(index) {
+      if (index < 0 || index >= studioCells.length) return;
+      const cell = studioCells[index];
+      if (cell.source && cell.source.trim().length > 30) {
+        if (!confirm(`Bạn có chắc muốn xóa ô #${index + 1} (${cell.type})? Nội dung sẽ bị xóa.`)) {
+          return;
+        }
+      }
+
+      studioCells.splice(index, 1);
+      syncStudioToSourceCode();
+      renderStudioCells();
+      updateStudioBadges();
+      showToast(`Đã xóa ô #${index + 1}!`, 'info');
+    }
+
+    function moveStudioCell(index, direction) {
+      const newIndex = index + direction;
+      if (newIndex < 0 || newIndex >= studioCells.length) return;
+      const temp = studioCells[index];
+      studioCells[index] = studioCells[newIndex];
+      studioCells[newIndex] = temp;
+
+      syncStudioToSourceCode();
+      renderStudioCells();
+      updateStudioBadges();
+    }
+
+    function updateStudioCellSource(index, val) {
+      if (index >= 0 && index < studioCells.length) {
+        studioCells[index].source = val;
+        syncStudioToSourceCode();
+        // Update line count badge in cell header without full re-render
+        const card = document.getElementById(`studio-cell-card-${index}`);
+        if (card) {
+          const lines = (val || '').split('\n').length;
+          const badge = card.querySelector('.text-\\[10px\\]');
+          if (badge) badge.innerText = `${lines} dòng`;
+        }
+      }
+    }
+
+    function updateStudioCellType(index, newType) {
+      if (index >= 0 && index < studioCells.length) {
+        studioCells[index].type = newType;
+        syncStudioToSourceCode();
+        renderStudioCells();
+        updateStudioBadges();
+      }
+    }
+
+    function toggleStudioCellCollapse(index) {
+      if (index >= 0 && index < studioCells.length) {
+        studioCells[index].isCollapsed = !studioCells[index].isCollapsed;
+        renderStudioCells();
+      }
+    }
+
+    function toggleAllStudioCells() {
+      allStudioCellsCollapsed = !allStudioCellsCollapsed;
+      studioCells.forEach(c => {
+        c.isCollapsed = allStudioCellsCollapsed;
+      });
+      renderStudioCells();
+      showToast(allStudioCellsCollapsed ? 'Đã thu gọn tất cả các ô cell' : 'Đã mở rộng tất cả các ô cell', 'info');
+    }
+
+    function toggleStudioViewMode(explicitMode) {
+      if (explicitMode) {
+        studioViewMode = explicitMode;
+      } else {
+        studioViewMode = (studioViewMode === 'cells') ? 'raw' : 'cells';
+      }
+
+      const cellsContainer = document.getElementById('trainerStudioCellsContainer');
+      const rawContainer = document.getElementById('trainerStudioRawContainer');
+      const label = document.getElementById('studioViewModeLabel');
+
+      if (studioViewMode === 'raw') {
+        syncStudioToSourceCode();
+        const rawTa = document.getElementById('trainerRawSourceTextarea');
+        if (rawTa) rawTa.value = getStudioAsRawScript();
+        if (cellsContainer) cellsContainer.classList.add('hidden');
+        if (rawContainer) rawContainer.classList.remove('hidden');
+        if (label) label.innerText = 'Chế độ Xem Cells';
+      } else {
+        const rawTa = document.getElementById('trainerRawSourceTextarea');
+        if (rawTa) onTrainerRawSourceInput(rawTa.value);
+        if (rawContainer) rawContainer.classList.add('hidden');
+        if (cellsContainer) cellsContainer.classList.remove('hidden');
+        if (label) label.innerText = 'Chế độ Raw Script';
+        renderStudioCells();
+      }
+      lucide.createIcons();
+    }
 
     async function renderTrainerTab() {
       await loadTrainerRecommendations();
@@ -4715,6 +5153,9 @@
         document.getElementById('trainerSlug').value = data.slug || '';
         currentTrainerSourceCode = data.source_code || '';
         trainerIsNotebook = Boolean(data.is_notebook);
+        syncSourceCodeToStudio(currentTrainerSourceCode, trainerIsNotebook);
+        studioTargetVersionInfo = null;
+        updateStudioBadges();
 
         // Hardware defaults to NvidiaTeslaT4 (GPU)
         const radios = document.getElementsByName('trainerHardware');
@@ -5036,6 +5477,10 @@
       // 7. Reset Source Code & State
       currentTrainerSourceCode = '';
       trainerIsNotebook = true;
+      studioCells = [];
+      studioTargetVersionInfo = null;
+      renderStudioCells();
+      updateStudioBadges();
 
       // 8. Reset Hardware radios to NvidiaTeslaT4 (GPU T4 x 2)
       const radios = document.getElementsByName('trainerHardware');
@@ -5088,7 +5533,7 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    async function onTrainerNotebookSelectChange(ref, explicitAccount) {
+    async function onTrainerNotebookSelectChange(ref, explicitAccount, version = null) {
       if (!ref) return;
       const loadingEl = document.getElementById('trainerNotebookLoading');
       if (loadingEl) loadingEl.classList.remove('hidden');
@@ -5096,7 +5541,9 @@
       const owner = explicitAccount || (ref.includes('/') ? ref.split('/')[0] : 'kitnehi1211');
 
       try {
-        const res = await fetch(`/api/runner/notebook-meta?account=${encodeURIComponent(owner)}&ref=${encodeURIComponent(ref)}`);
+        let metaUrl = `/api/runner/notebook-meta?account=${encodeURIComponent(owner)}&ref=${encodeURIComponent(ref)}`;
+        if (version) metaUrl += `&version=${encodeURIComponent(version)}`;
+        const res = await fetch(metaUrl);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
@@ -5110,6 +5557,15 @@
         document.getElementById('trainerSlug').value = data.slug || '';
         currentTrainerSourceCode = data.source_code || '';
         trainerIsNotebook = Boolean(data.is_notebook);
+        syncSourceCodeToStudio(currentTrainerSourceCode, trainerIsNotebook);
+        studioTargetVersionInfo = {
+          loadedVersion: data.loaded_version || (version ? parseInt(version) : 1),
+          currentHeadVersion: data.current_head_version || 1,
+          ref: data.ref || ref,
+          owner: owner,
+          slug: data.slug || ''
+        };
+        updateStudioBadges();
 
         // Hardware radio selection (GPU T4 or CPU)
         const hwVal = (data.enable_gpu || (data.machine_shape && data.machine_shape.includes('T4'))) ? 'NvidiaTeslaT4' : '';
@@ -5135,6 +5591,16 @@
         if (data.kernel_sources && Array.isArray(data.kernel_sources)) {
           data.kernel_sources.forEach(ks => {
             if (ks) selectedInputSources.push({ type: 'kernel', ref: ks, title: ks });
+          });
+        }
+        if (data.competition_sources && Array.isArray(data.competition_sources)) {
+          data.competition_sources.forEach(cs => {
+            if (cs) selectedInputSources.push({ type: 'competition', ref: cs, title: cs });
+          });
+        }
+        if (data.model_sources && Array.isArray(data.model_sources)) {
+          data.model_sources.forEach(ms => {
+            if (ms) selectedInputSources.push({ type: 'model', ref: ms, title: ms });
           });
         }
         renderSelectedInputs();
@@ -5169,6 +5635,9 @@
         const text = e.target.result;
         currentTrainerSourceCode = text;
         trainerIsNotebook = file.name.toLowerCase().endsWith('.ipynb');
+        syncSourceCodeToStudio(currentTrainerSourceCode, trainerIsNotebook);
+        studioTargetVersionInfo = null;
+        updateStudioBadges();
 
         const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_\-]+/g, ' ').trim();
         document.getElementById('trainerTitle').value = cleanName;
@@ -5205,6 +5674,10 @@
 
     function clearUploadedFile() {
       currentTrainerSourceCode = '';
+      studioCells = [];
+      studioTargetVersionInfo = null;
+      renderStudioCells();
+      updateStudioBadges();
       document.getElementById('trainerFileInput').value = '';
       document.getElementById('uploadedFileInfo').classList.add('hidden');
       document.getElementById('trainerDropZone').classList.remove('hidden');
@@ -5469,6 +5942,13 @@
 
     // Submit Notebook Run
     async function submitRunNotebook() {
+      if (studioViewMode === 'cells') {
+        syncStudioToSourceCode();
+      } else {
+        const rawTa = document.getElementById('trainerRawSourceTextarea');
+        if (rawTa) onTrainerRawSourceInput(rawTa.value);
+      }
+
       const targetAccount = document.getElementById('trainerTargetAccount').value;
       const title = document.getElementById('trainerTitle').value.trim();
       const slug = document.getElementById('trainerSlug').value.trim();
@@ -5744,24 +6224,92 @@
       }).join('');
     }
 
+    function formatHardwareShape(shape, enableGpu = true) {
+      if (!shape && !enableGpu) return 'CPU Standard';
+      const s = String(shape || '').trim();
+      if (!s) return enableGpu ? 'NVIDIA Tesla T4 (GPU)' : 'CPU Standard';
+      if (/nvidia.*t4/i.test(s) || /tesla.*t4/i.test(s) || s.toLowerCase() === 'nvidiateslat4') {
+        return 'NVIDIA Tesla T4 (GPU)';
+      }
+      if (/tpu/i.test(s)) return 'TPU v3-8 Pod';
+      if (/p100/i.test(s)) return 'NVIDIA Tesla P100 (GPU)';
+      if (/gpu/i.test(s) || enableGpu) {
+        return s.replace(/([a-z])([A-Z])/g, '$1 $2');
+      }
+      return s;
+    }
+
     function renderTerminalSplash(run) {
       const s = (run?.status || 'QUEUED').toUpperCase();
+      const hw = formatHardwareShape(run?.machine_shape, run?.enable_gpu);
+      const isRunning = s === 'RUNNING' || s === 'RUNNING_INTERACTIVE';
+      const isQueued = s === 'QUEUED';
+      const isComplete = s === 'COMPLETE';
+      const isError = s === 'ERROR' || s === 'FAILED';
+
+      const statusColor = isQueued 
+        ? 'text-amber-400 animate-pulse font-bold' 
+        : (isRunning ? 'text-emerald-400 font-bold' : (isComplete ? 'text-emerald-400 font-bold' : (isError ? 'text-rose-400 font-bold' : 'text-slate-300 font-bold')));
+      const statusDesc = isQueued 
+        ? 'Đang cấp phát máy ảo GPU' 
+        : (isRunning ? 'Đang chạy GPU Tesla T4' : (isComplete ? 'Hoàn tất 100%' : (isError ? 'Thất bại' : 'Đang xử lý')));
+
       return `
-        <div class="p-3 space-y-3 select-none font-mono">
-          <div class="text-purple-400 font-bold text-xs flex items-center gap-2">
-            <i data-lucide="cpu" class="w-4 h-4"></i>
-            <span>⚡ KAGGLE CLOUD GPU WORKER ACTIVE MONITOR</span>
+        <div class="p-3.5 space-y-3 select-none font-mono text-xs">
+          <div class="text-purple-400 font-bold text-xs flex items-center justify-between">
+            <span class="flex items-center gap-2">
+              <i data-lucide="cpu" class="w-4 h-4 text-purple-400"></i>
+              <span>⚡ KAGGLE CLOUD GPU WORKER ACTIVE MONITOR</span>
+            </span>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-purple-950/80 border border-purple-800/80 text-purple-300 font-mono">
+              Live Stream
+            </span>
           </div>
-          <div class="p-3 bg-slate-900/80 border border-slate-800 rounded-lg space-y-1.5 text-slate-300 text-[11px]">
-            <div>&bull; Worker Account    : <span class="text-purple-300 font-bold font-mono">@${run?.account || 'Kaggle Worker'}</span></div>
-            <div>&bull; Hardware Profile  : <span class="text-cyan-300 font-bold font-mono">${run?.machine_shape || (run?.enable_gpu ? 'Nvidia Tesla T4 (GPU)' : 'CPU')}</span></div>
-            <div>&bull; Kernel Reference  : <span class="text-slate-200 font-mono">${run?.ref || 'N/A'}</span></div>
-            <div>&bull; Current Lifecycle : <span class="font-bold ${s === 'QUEUED' ? 'text-amber-400 animate-pulse' : (s === 'COMPLETE' ? 'text-emerald-400' : (s === 'ERROR' ? 'text-rose-400' : 'text-emerald-400'))}">${s} (${s === 'QUEUED' ? 'Đang cấp phát máy ảo GPU' : (s === 'COMPLETE' ? 'Hoàn tất 100%' : (s === 'ERROR' ? 'Thất bại' : 'Đang xử lý'))})</span></div>
+          
+          <!-- Metadata Table with clean CSS Grid -->
+          <div class="p-3 bg-slate-900/90 border border-slate-800 rounded-lg text-slate-300 text-[11px] space-y-1.5 shadow-inner">
+            <div class="grid grid-cols-[130px_1fr] items-center gap-2">
+              <span class="text-slate-400 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> Worker Account
+              </span>
+              <span class="text-purple-300 font-bold font-mono truncate">@${run?.account || 'Kaggle Worker'}</span>
+            </div>
+            <div class="grid grid-cols-[130px_1fr] items-center gap-2">
+              <span class="text-slate-400 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> Hardware Profile
+              </span>
+              <span class="text-cyan-300 font-bold font-mono">${hw}</span>
+            </div>
+            <div class="grid grid-cols-[130px_1fr] items-center gap-2">
+              <span class="text-slate-400 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Kernel Reference
+              </span>
+              <span class="text-slate-200 font-mono truncate" title="${run?.ref || ''}">${run?.ref || 'N/A'}</span>
+            </div>
+            <div class="grid grid-cols-[130px_1fr] items-center gap-2">
+              <span class="text-slate-400 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-emerald-400 animate-ping' : (isQueued ? 'bg-amber-400 animate-ping' : 'bg-slate-400')}"></span> Current Lifecycle
+              </span>
+              <span class="font-mono ${statusColor}">${s} (${statusDesc})</span>
+            </div>
           </div>
-          <div class="text-[11px] text-slate-400 leading-relaxed bg-slate-950/60 p-3 rounded-lg border border-slate-800/60">
-            ${s === 'QUEUED' 
-              ? '<span class="text-amber-400 font-bold flex items-center gap-1.5"><i data-lucide="clock" class="w-3.5 h-3.5 animate-spin"></i> Máy chủ Kaggle đang cấp phát GPU Tesla T4 & mount input datasets (thường mất 30–50 giây)...</span><div class="mt-1 text-slate-400">Luồng log đầu ra (stdout/stderr) sẽ tự động stream tại đây ngay khi cell code đầu tiên thực thi.</div>' 
-              : '<span class="text-emerald-400 font-bold flex items-center gap-1.5"><i data-lucide="activity" class="w-3.5 h-3.5 animate-pulse text-emerald-400"></i> Máy ảo GPU Tesla T4 đang chạy & kết nối luồng logs trực tiếp từ Kaggle API...</span><div class="mt-1 text-slate-400">Môi trường CUDA, Python Kernel và datasets đang được xử lý trong <code>/kaggle/working</code>. Output sẽ tự động stream ngay khi có dữ liệu ghi.</div>'}
+
+          <!-- Live Progress Notification Box -->
+          <div class="text-[11px] text-slate-300 leading-relaxed bg-slate-950/80 p-3 rounded-lg border border-slate-800/80 shadow-xs">
+            ${isQueued 
+              ? `<div class="text-amber-400 font-bold flex items-center gap-2">
+                   <i data-lucide="clock" class="w-3.5 h-3.5 animate-spin text-amber-400 flex-shrink-0"></i>
+                   <span>Máy chủ Kaggle đang cấp phát GPU Tesla T4 & mount input datasets (thường mất 30–50 giây)...</span>
+                 </div>
+                 <div class="mt-1.5 text-slate-400 text-[11px]">Luồng log đầu ra (stdout/stderr) sẽ tự động stream tại đây ngay khi cell code đầu tiên thực thi.</div>` 
+              : `<div class="text-emerald-400 font-bold flex items-center gap-2">
+                   <span class="relative flex h-2.5 w-2.5 flex-shrink-0">
+                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                     <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                   </span>
+                   <span>Máy ảo GPU Tesla T4 đang hoạt động — Đang kết nối luồng logs trực tiếp từ Kaggle API...</span>
+                 </div>
+                 <div class="mt-1.5 text-slate-400 text-[11px] leading-relaxed">Môi trường CUDA, Python Kernel và datasets đang được xử lý trong <code class="text-purple-300 bg-purple-950/50 px-1 py-0.5 rounded border border-purple-800/40">/kaggle/working</code>. Output sẽ tự động stream từng dòng ngay khi code ghi output.</div>`}
           </div>
         </div>
       `;
@@ -5870,8 +6418,8 @@
                 </button>
               </p>
             </div>
-            <span class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white border border-purple-300 text-purple-800 shadow-2xs">
-              ${run.machine_shape || (run.enable_gpu ? 'GPU Tesla T4' : 'CPU')}
+            <span class="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white border border-purple-300 text-purple-800 shadow-2xs font-mono">
+              ${formatHardwareShape(run.machine_shape, run.enable_gpu)}
             </span>
           </div>
 
@@ -6183,12 +6731,13 @@
       trainerLogAutoScroll = !trainerLogAutoScroll;
       const btn = document.getElementById('btnTrainerAutoScroll');
       if (btn) {
+        btn.title = trainerLogAutoScroll ? "Tự động cuộn xuống cuối log (đang BẬT)" : "Tự động cuộn xuống cuối log (đang TẮT)";
         btn.innerHTML = trainerLogAutoScroll 
-          ? '<i data-lucide="arrow-down-circle" class="w-3 h-3"></i> <span>Cuộn: BẬT</span>'
-          : '<i data-lucide="circle-slash" class="w-3 h-3"></i> <span>Cuộn: TẮT</span>';
+          ? '<i data-lucide="arrow-down-circle" class="w-3.5 h-3.5"></i> <span class="hidden 2xl:inline">Cuộn</span>'
+          : '<i data-lucide="circle-slash" class="w-3.5 h-3.5"></i> <span class="hidden 2xl:inline">Cuộn</span>';
         btn.className = trainerLogAutoScroll 
-          ? 'text-emerald-400 hover:text-emerald-300 px-2 py-1 rounded bg-emerald-950/80 border border-emerald-800/80 text-[11px] font-mono cursor-pointer transition-colors whitespace-nowrap flex-shrink-0 flex items-center gap-1' 
-          : 'text-slate-400 hover:text-slate-300 px-2 py-1 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono cursor-pointer transition-colors whitespace-nowrap flex-shrink-0 flex items-center gap-1';
+          ? 'text-emerald-400 hover:text-emerald-300 px-1.5 h-7 rounded bg-emerald-950/80 border border-emerald-800/80 text-[10px] font-mono cursor-pointer transition-colors flex-shrink-0 flex items-center gap-1' 
+          : 'text-slate-400 hover:text-slate-300 px-1.5 h-7 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono cursor-pointer transition-colors flex-shrink-0 flex items-center gap-1';
         lucide.createIcons();
       }
     }
