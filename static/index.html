@@ -5729,20 +5729,46 @@
         };
       }
 
-      // 4. Model URL: kaggle.com/models/<owner>/<slug>
-      const modelMatch = clean.match(/kaggle\.com\/models\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)/i);
-      if (modelMatch) {
+      // 4. Model URL: kaggle.com/models/<owner>/<slug>[/<framework>/<variation>]
+      const modelDetailedMatch = clean.match(/kaggle\.com\/models\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)(?:\/\d+)?/i);
+      if (modelDetailedMatch) {
+        const mRef = `${modelDetailedMatch[1]}/${modelDetailedMatch[2]}/${modelDetailedMatch[3]}/${modelDetailedMatch[4]}`;
         return {
-          type: 'dataset',
-          ref: `${modelMatch[1]}/${modelMatch[2]}`,
-          owner: modelMatch[1],
-          slug: modelMatch[2],
-          title: modelMatch[2],
+          type: 'model',
+          ref: mRef,
+          owner: modelDetailedMatch[1],
+          slug: modelDetailedMatch[2],
+          title: mRef,
           isUrl: true
         };
       }
 
-      // 5. Bare owner/slug format: e.g. kitnehi1211/build-wheels
+      const modelSimpleMatch = clean.match(/kaggle\.com\/models\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)/i);
+      if (modelSimpleMatch) {
+        return {
+          type: 'model',
+          ref: `${modelSimpleMatch[1]}/${modelSimpleMatch[2]}`,
+          owner: modelSimpleMatch[1],
+          slug: modelSimpleMatch[2],
+          title: modelSimpleMatch[2],
+          isUrl: true
+        };
+      }
+
+      // 5. Bare 4-part model ref: owner/model/framework/variation
+      const modelBareMatch = clean.match(/^([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)$/);
+      if (modelBareMatch) {
+        return {
+          type: 'model',
+          ref: clean,
+          owner: modelBareMatch[1],
+          slug: modelBareMatch[2],
+          title: clean,
+          isUrl: false
+        };
+      }
+
+      // 6. Bare owner/slug format: e.g. kitnehi1211/build-wheels
       const bareMatch = clean.match(/^([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)$/);
       if (bareMatch) {
         const isKernel = (kernelsData || []).some(k => k.ref && k.ref.toLowerCase() === clean.toLowerCase());
@@ -5866,7 +5892,7 @@
       } else {
         selectedInputSources.push({ type: finalType, ref: finalRef, title: finalTitle });
         renderSelectedInputs();
-        const typeStr = (finalType === 'kernel') ? 'Notebook Output' : (finalType === 'competition' ? 'Competition' : 'Dataset');
+        const typeStr = (finalType === 'kernel') ? 'Notebook Output' : (finalType === 'competition' ? 'Competition' : (finalType === 'model' ? 'Kaggle Model' : 'Dataset'));
         showToast(`Đã thêm ${typeStr}: ${finalRef}`, 'success');
       }
       const dropdown = document.getElementById('trainerSuggestionsDropdown');
@@ -5912,6 +5938,7 @@
       container.innerHTML = selectedInputSources.map(i => {
         const isDs = (i.type === 'dataset');
         const isComp = (i.type === 'competition');
+        const isModel = (i.type === 'model');
         let badgeColor = 'bg-purple-50 text-purple-800 border-purple-300';
         let icon = 'file-code';
         let typeBadge = '<span class="text-[9px] px-1 py-0.5 bg-purple-200 text-purple-900 rounded font-semibold uppercase">Code Output</span>';
@@ -5924,6 +5951,10 @@
           badgeColor = 'bg-amber-50 text-amber-800 border-amber-300';
           icon = 'trophy';
           typeBadge = '<span class="text-[9px] px-1 py-0.5 bg-amber-200 text-amber-900 rounded font-semibold uppercase">Competition</span>';
+        } else if (isModel) {
+          badgeColor = 'bg-emerald-50 text-emerald-800 border-emerald-300';
+          icon = 'box';
+          typeBadge = '<span class="text-[9px] px-1 py-0.5 bg-emerald-200 text-emerald-900 rounded font-semibold uppercase">Model</span>';
         }
 
         return `
@@ -5985,6 +6016,7 @@
       const datasetSources = selectedInputSources.filter(i => i.type === 'dataset').map(i => i.ref);
       const kernelSources = selectedInputSources.filter(i => i.type === 'kernel').map(i => i.ref);
       const competitionSources = selectedInputSources.filter(i => i.type === 'competition').map(i => i.ref);
+      const modelSources = selectedInputSources.filter(i => i.type === 'model').map(i => i.ref);
 
       const btn = document.getElementById('btnSubmitRun');
       btn.disabled = true;
@@ -6003,6 +6035,7 @@
           dataset_sources: datasetSources,
           kernel_sources: kernelSources,
           competition_sources: competitionSources,
+          model_sources: modelSources,
           is_notebook: trainerIsNotebook,
           language: 'python',
           backup_to_master: Boolean(document.getElementById('trainerBackupToMaster')?.checked)
