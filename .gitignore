@@ -12,6 +12,10 @@
 # Runtime-generated dashboard state
 /data_cache.json
 /quota_data.json
+/training_history.json
+uvicorn.log
+/config.json
+*.tmp
 /scratch/
 /__pycache__/
 *.py[cod]

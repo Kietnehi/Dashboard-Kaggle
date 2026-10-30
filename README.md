@@ -7,8 +7,25 @@ Dashboard web chạy local để theo dõi nhiều tài khoản Kaggle trong cù
 ## Tính năng
 
 - Tổng quan số lượng tài khoản, notebooks, datasets và competitions.
-- Lọc dữ liệu theo tài khoản, trạng thái và từ khóa.
+- Lọc dữ liệu theo tài khoản, trạng thái và từ khóa với cơ chế debounce 200ms mượt mà.
+- **🚀 Trung tâm Huấn luyện & Run Hub (Multi-Account GPU Hub):**
+  - Cho phép chọn bất kỳ notebook nào từ tài khoản master `@kitnehi1211` hoặc các tài khoản khác, hoặc tải trực tiếp file `.ipynb` / `.py` từ máy tính.
+  - **Smart GPU Recommender:** Tự động xếp hạng và gợi ý tài khoản còn nhiều quota GPU nhất (30h/30h như `baovuong3009`, `justb2464`, `xyzabz`) để thực thi thay vì làm cạn kiệt tài khoản chính.
+  - **Tùy chọn cấu hình phần cứng:** Hỗ trợ GPU Tesla T4 x 2 (`NvidiaTeslaT4`) hoặc CPU.
+  - **Autocomplete Input Data Sources:** Ô tìm kiếm gợi ý thông minh từ 122 datasets và 256 notebooks đã đồng bộ, thêm bớt bằng chip thẻ trực quan.
+  - **Điều khiển Run / Cancel & Live Console Output:** Bấm bắt đầu chạy (Push & Run) qua Kaggle SDK headless, dừng/hủy tức thì (Cancel API & Chrome profile fallback), và theo dõi console log streaming theo thời gian thực (tự động polling 4s + autoscroll).
+  - **Tự động chia sẻ Dataset (Collaborator Automation):** Phân quyền tự động `WRITER`/`READER` cho nhiều tài khoản trong pool qua Kaggle SDK, kèm nút 1-click mở Chrome Profile của owner để chia sẻ notebook.
+- **📦 Tạo Dataset Mới Vào Kaggle (@kitnehi1211) & Quản Lý Quyền (Private / Public):**
+  - Cho phép tạo và upload trực tiếp Dataset lên Kaggle thuộc sở hữu của tài khoản `@kitnehi1211`.
+  - Hỗ trợ 2 phương thức nạp dữ liệu: Tải file từ máy tính (kéo thả hoặc chọn nhiều file qua trình duyệt) và/hoặc Trỏ trực tiếp thư mục cục bộ trên ổ cứng (Local folder path - tối ưu cho dataset lớn).
+  - Tự động kiểm tra tính khả dụng của đường dẫn ref (slug) thời gian thực qua Kaggle API.
+  - Tùy chọn quyền riêng tư: **Private (Riêng tư - Khuyên dùng)** hoặc **Public (Công khai)** ngay khi tạo.
+  - Hỗ trợ 1-click mở Public cho các dataset Private của `@kitnehi1211` (kèm cảnh báo chính sách Kaggle: một khi đã Public sẽ vĩnh viễn không thể rollback về Private).
+  - Đồng bộ tức thì: Dataset vừa tạo sẽ xuất hiện ngay trên Kaggle Datasets và trong bảng quản lý của Dashboard kèm liên kết xem trực tiếp.
 - Theo dõi notebook đang ở trạng thái `RUNNING` hoặc `QUEUED`.
+- **Thanh đo thời lượng phiên chạy & Cảnh báo trần 9h/12h Kaggle:** Tự động tính toán số giờ đã chạy so với hạn mức tối đa của Kaggle (9h GPU / 12h CPU) để cảnh báo kịp thời trước khi session timeout.
+- **Dừng / Hủy phiên chạy Notebook:** Cho phép hủy phiên chạy trực tiếp hoặc tự động mở trình duyệt với đúng Chrome Profile của tài khoản để dừng tức thì, tránh lãng phí quota GPU.
+- **Live Output Log cho Collaborator:** Tự động nhận diện và fallback lấy log giữa tài khoản thực thi (runner) và tài khoản chủ sở hữu (owner) đối với các notebook được chia sẻ.
 - Kiểm tra hardware, thời gian chạy, input, output và log của notebook khi Kaggle cung cấp dữ liệu.
 - Quota GPU/TPU theo từng tài khoản, lấy trực tiếp từ endpoint quota của Kaggle.
 - Phân biệt quota đã lấy từ Kaggle với quota được nhập thủ công.
@@ -89,11 +106,11 @@ Nhấn `Ctrl+C` trong cửa sổ server để dừng website.
 ## Cơ chế cập nhật dữ liệu
 
 - **Làm mới**: gọi Kaggle để đồng bộ lại notebooks, datasets, competitions và sau đó cập nhật quota. Với nhiều tài khoản, thao tác này có thể mất vài phút.
+- **Tự động làm mới định kỳ (Auto-Refresh)**: Server chạy tiến trình ngầm tự động đồng bộ lại toàn bộ dữ liệu từ Kaggle API theo chu kỳ an toàn (mặc định 15 phút, tùy chọn: 10 phút, 15 phút, 30 phút, 1 giờ hoặc Tắt). Cơ chế có tích hợp bảo vệ chống Rate Limit (tối thiểu 10 phút) và hiển thị đồng hồ đếm ngược trực tiếp trên giao diện web.
 - **Quét lại Real-time**: chỉ gọi Kaggle để lấy quota GPU/TPU mới nhất cho từng account.
-- **Tự động tải lại giao diện**: chỉ đọc cache hiện tại và tải lại các API local; không tự đồng bộ toàn bộ dữ liệu mới từ Kaggle.
-- **Kiểm tra nền**: server kiểm tra trạng thái notebook đang chạy theo chu kỳ an toàn khoảng hai phút để hạn chế rate limit.
+- **Kiểm tra nền notebook**: server kiểm tra trạng thái notebook đang chạy theo chu kỳ an toàn khoảng hai phút để hạn chế rate limit.
 
-Cache được tạo tại `data_cache.json` và `quota_data.json` sau khi chạy. Hai file này bị Git bỏ qua vì chứa trạng thái/account data local và không cần thiết để build source.
+Cache được tạo tại `data_cache.json` và `quota_data.json` sau khi chạy. Cấu hình tự động làm mới được lưu tại `config.json`. Các file này bị Git bỏ qua vì chứa trạng thái/account data local và không cần thiết để build source.
 
 ## API local chính
 
@@ -103,11 +120,17 @@ Cache được tạo tại `data_cache.json` và `quota_data.json` sau khi chạ
 | `GET` | `/api/accounts` | Danh sách account và số lượng dữ liệu |
 | `GET` | `/api/kernels` | Danh sách notebooks |
 | `GET` | `/api/datasets` | Danh sách datasets |
+| `POST` | `/api/datasets/create` | Tạo dataset mới trên Kaggle (upload file qua form) |
+| `POST` | `/api/datasets/create-local` | Tạo dataset từ thư mục local trên máy tính |
+| `POST` | `/api/datasets/set-privacy` | Cập nhật quyền Private ↔ Public cho dataset |
+| `GET` | `/api/datasets/check-slug` | Kiểm tra tính khả dụng của slug dataset |
 | `GET` | `/api/competitions` | Danh sách competitions |
 | `GET` | `/api/quotas` | Quota đang lưu trong cache |
 | `POST` | `/api/quotas/scan-now` | Quét quota trực tiếp từ Kaggle |
 | `POST` | `/api/refresh` | Bắt đầu đồng bộ toàn bộ dữ liệu |
 | `GET` | `/api/refresh/status` | Tiến trình đồng bộ |
+| `GET` | `/api/settings/auto-refresh` | Lấy cấu hình và thời gian còn lại đến lượt làm mới tiếp theo |
+| `POST` | `/api/settings/auto-refresh` | Cập nhật chu kỳ tự động làm mới (có khóa bảo vệ Rate Limit) |
 
 FastAPI cũng cung cấp tài liệu API tại `http://127.0.0.1:8000/docs` khi server đang chạy.
 

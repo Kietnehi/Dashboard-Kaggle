@@ -8,9 +8,12 @@ import html
 import logging
 import threading
 import tempfile
+import subprocess
+import webbrowser
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
+import shutil
 
 # The accelerator-quota endpoint was added to the current Kaggle SDK. Keep the
 # runtime self-contained so the dashboard does not depend on whichever older
@@ -45,10 +48,15 @@ from kagglesdk.kernels.services.kernels_api_service import (
     ApiGetKernelSessionStatusRequest,
     ApiListKernelFilesRequest,
     ApiListKernelsRequest,
+    ApiCancelKernelSessionRequest,
+    ApiDeleteKernelRequest,
+    ApiSaveKernelRequest,
+    ApiSaveKernelResponse,
 )
 from kagglesdk.kernels.types.kernels_enums import KernelsListSortType, KernelsListViewType
 from kagglesdk.datasets.types.dataset_enums import DatasetSelectionGroup, DatasetSortBy
-from kagglesdk.datasets.types.dataset_api_service import ApiListDatasetsRequest
+from kagglesdk.datasets.types.dataset_api_service import ApiListDatasetsRequest, ApiUpdateDatasetMetadataRequest, ApiGetDatasetMetadataRequest
+from kagglesdk.datasets.types.dataset_types import DatasetSettings, DatasetCollaborator, CollaboratorType, SettingsLicense
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger("kaggle_service")
@@ -56,6 +64,7 @@ logger = logging.getLogger("kaggle_service")
 CRED_DIR = os.path.join(BASE_DIR, "Credentials")
 CACHE_FILE = os.path.join(BASE_DIR, "data_cache.json")
 QUOTA_FILE = os.path.join(BASE_DIR, "quota_data.json")
+HISTORY_FILE = os.path.join(BASE_DIR, "training_history.json")
 
 kaggle_api_lock = threading.Lock()
 
@@ -75,11 +84,41 @@ def format_bytes(size):
         size /= 1024.0
     return f"{size:.1f} PB"
 
+def parse_datetime_to_timestamp(dt):
+    if not dt:
+        return 0.0
+    if isinstance(dt, (int, float)):
+        return float(dt)
+    if isinstance(dt, datetime):
+        return dt.timestamp()
+    if isinstance(dt, str):
+        s = dt.strip()
+        if not s:
+            return 0.0
+        try:
+            cleaned = s.replace(" ", "T").rstrip("Z")
+            if "+00:00" in cleaned:
+                cleaned = cleaned.replace("+00:00", "")
+            return datetime.fromisoformat(cleaned).timestamp()
+        except Exception:
+            return 0.0
+    return 0.0
+
 def format_datetime(dt):
     if not dt:
         return ""
     if isinstance(dt, str):
-        return dt
+        s = dt.strip()
+        if not s:
+            return ""
+        try:
+            cleaned = s.replace(" ", "T").rstrip("Z")
+            if "+00:00" in cleaned:
+                cleaned = cleaned.replace("+00:00", "")
+            parsed = datetime.fromisoformat(cleaned)
+            return parsed.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return s
     try:
         return dt.strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
@@ -118,6 +157,27 @@ def _duration_to_hours(duration):
     except (TypeError, ValueError, AttributeError):
         return None
     return None
+
+
+def _duration_to_seconds(duration):
+    """Convert Kaggle protobuf duration or timedelta to seconds."""
+    if duration is None:
+        return 0.0
+    try:
+        if hasattr(duration, "total_seconds"):
+            return float(duration.total_seconds())
+        seconds = getattr(duration, "seconds", None)
+        nanos = getattr(duration, "nanos", 0)
+        if seconds is not None:
+            return float(seconds) + (float(nanos or 0) / 1_000_000_000.0)
+        if isinstance(duration, (int, float)):
+            return float(duration)
+        if isinstance(duration, str):
+            s = duration.strip().rstrip("s")
+            return float(s.split(".")[0])
+    except (TypeError, ValueError, AttributeError):
+        return 0.0
+    return 0.0
 
 
 def _coerce_bool(value):
@@ -166,6 +226,76 @@ def _kernel_owner(ref, fallback=""):
     """Get the notebook owner encoded in a Kaggle ``owner/slug`` ref."""
     ref = str(ref or "").strip()
     return ref.split("/", 1)[0] if "/" in ref else str(fallback or "").strip()
+
+
+def _score_running_candidate(item, quotas_map):
+    """Score a candidate running record when multiple accounts claim the same ref."""
+    acc = str(item.get("account") or "").strip()
+    ref = str(item.get("ref") or "").strip()
+    owner = item.get("owner") or _kernel_owner(ref, acc)
+    is_gpu = _coerce_bool(item.get("enable_gpu"))
+    is_tpu = _coerce_bool(item.get("enable_tpu"))
+    score = 0
+
+    q = quotas_map.get(acc) if isinstance(quotas_map, dict) else {}
+    if isinstance(q, dict):
+        gpu_rem = float(q.get("gpu_remaining") or 0.0)
+        time_res = float(q.get("time_reserved_seconds") or q.get("gpu_reserved_seconds") or 0.0)
+        if is_gpu:
+            if gpu_rem <= 0.0:
+                score -= 1000  # Cannot run GPU with 0 quota remaining
+            elif time_res > 0.0:
+                score += 1000  # Active GPU reservation confirmed on Kaggle
+            elif gpu_rem > 0.0:
+                score += 300
+        elif is_tpu:
+            tpu_rem = float(q.get("tpu_remaining") or 0.0)
+            if tpu_rem <= 0.0:
+                score -= 1000
+            elif tpu_rem > 0.0:
+                score += 300
+
+    # In a multi-account setup, when account A shares notebook to account B,
+    # it is specifically for account B (the collaborator) to execute it.
+    # The owner (account A) sees it running only because they own the notebook on Kaggle.
+    if acc.lower() != str(owner or "").lower():
+        score += 100
+
+    # Slight tie-breaker for newer run time
+    lrt = str(item.get("last_run_time") or "")
+    if lrt:
+        score += 10
+
+    return score
+
+
+def _resolve_running_kernels(raw_items, quotas_map=None):
+    """Ensure each distinct notebook ref appears at most once in running list.
+
+    When a notebook is shared between multiple accounts (e.g. owner and collaborator),
+    both accounts report status RUNNING from Kaggle API. This helper selects the
+    single true runner based on active hardware reservation, available quota, and
+    collaborator delegation preference.
+    """
+    by_ref = {}
+    for item in raw_items or []:
+        if not isinstance(item, dict):
+            continue
+        ref = str(item.get("ref") or "").strip()
+        if not ref:
+            continue
+        canon = ref.lower()
+        by_ref.setdefault(canon, []).append(item)
+
+    resolved = []
+    for canon, candidates in by_ref.items():
+        if len(candidates) == 1:
+            resolved.append(candidates[0])
+        else:
+            best = max(candidates, key=lambda c: _score_running_candidate(c, quotas_map or {}))
+            resolved.append(best)
+
+    return resolved
 
 
 def _clean_kernel_session_log(raw_log):
@@ -312,21 +442,30 @@ class KaggleMonitorService:
         self._quota_write_lock = threading.Lock()
 
     def extract_running_from_data(self):
-        running_by_identity = {}
+        candidates = []
         sources = [self.data.get("all_kernels", [])]
         sources.extend(
             account.get("kernels", [])
             for account in self.data.get("accounts", [])
         )
+        seen_identities = set()
         for source in sources:
             for kernel in source or []:
-                if kernel.get("ref") and not kernel.get("owner"):
-                    kernel["owner"] = _kernel_owner(kernel.get("ref"), kernel.get("account", ""))
+                if not isinstance(kernel, dict):
+                    continue
+                ref = kernel.get("ref")
+                if not ref:
+                    continue
+                if not kernel.get("owner"):
+                    kernel["owner"] = _kernel_owner(ref, kernel.get("account", ""))
                 status = str(kernel.get("status") or "").upper()
                 if status in ACTIVE_KERNEL_STATUSES:
-                    identity = _kernel_identity(kernel.get("account"), kernel.get("ref"))
-                    running_by_identity.setdefault(identity, kernel)
-        return list(running_by_identity.values())
+                    identity = _kernel_identity(kernel.get("account"), ref)
+                    if identity not in seen_identities:
+                        seen_identities.add(identity)
+                        candidates.append(kernel)
+
+        return _resolve_running_kernels(candidates, getattr(self, "quotas", {}))
 
     def persist_live_kernel(self, live_kernel):
         """Keep a newly discovered account-scoped live record in the cache."""
@@ -336,7 +475,7 @@ class KaggleMonitorService:
         ref = live_kernel.get("ref")
         if not account or not ref:
             return
-        identity = _kernel_identity(account, ref)
+        canon_ref = str(ref or "").strip().lower()
         fields = (
             "account", "owner", "ref", "title", "url", "status",
             "failure_message", "enable_gpu", "enable_tpu", "enable_internet",
@@ -348,10 +487,11 @@ class KaggleMonitorService:
                 if field in live_kernel:
                     target[field] = live_kernel[field]
 
+        # In all_kernels, match by unique notebook ref
         global_record = next(
             (
                 kernel for kernel in self.data.setdefault("all_kernels", [])
-                if _kernel_identity(kernel.get("account"), kernel.get("ref")) == identity
+                if str(kernel.get("ref") or "").strip().lower() == canon_ref
             ),
             None,
         )
@@ -359,6 +499,22 @@ class KaggleMonitorService:
             self.data["all_kernels"].append(dict(live_kernel))
         else:
             merge(global_record)
+            global_record["account"] = account
+
+        # Clean any accidental duplicate records for this ref in all_kernels
+        deduped_all = []
+        seen_all_refs = set()
+        for k in self.data.get("all_kernels", []):
+            r = str(k.get("ref") or "").strip().lower()
+            if not r or r not in seen_all_refs:
+                if r:
+                    seen_all_refs.add(r)
+                deduped_all.append(k)
+        self.data["all_kernels"] = deduped_all
+        self.data["all_kernels"].sort(
+            key=lambda k: parse_datetime_to_timestamp(k.get("last_run_time")),
+            reverse=True,
+        )
 
         for account_data in self.data.get("accounts", []):
             if account_data.get("username") != account:
@@ -366,7 +522,7 @@ class KaggleMonitorService:
             account_record = next(
                 (
                     kernel for kernel in account_data.get("kernels", [])
-                    if _kernel_identity(kernel.get("account"), kernel.get("ref")) == identity
+                    if str(kernel.get("ref") or "").strip().lower() == canon_ref
                 ),
                 None,
             )
@@ -374,6 +530,10 @@ class KaggleMonitorService:
                 account_data.setdefault("kernels", []).append(dict(live_kernel))
             else:
                 merge(account_record)
+            account_data["kernels"].sort(
+                key=lambda k: parse_datetime_to_timestamp(k.get("last_run_time")),
+                reverse=True,
+            )
             account_data["kernels_count"] = len(account_data.get("kernels", []))
             break
         if "summary" in self.data:
@@ -387,6 +547,32 @@ class KaggleMonitorService:
             try:
                 with open(self.cache_file, "r", encoding="utf-8") as fp:
                     data = json.load(fp)
+                    # Deduplicate all_kernels by ref so legacy duplicates from shared notebooks are purged
+                    all_k = data.get("all_kernels", [])
+                    if all_k:
+                        by_ref = {}
+                        for k in all_k:
+                            r = (k.get("ref") or "").strip().lower()
+                            if not r:
+                                continue
+                            if r not in by_ref:
+                                by_ref[r] = k
+                            else:
+                                exist = by_ref[r]
+                                k_run = k.get("status") in ACTIVE_KERNEL_STATUSES
+                                ex_run = exist.get("status") in ACTIVE_KERNEL_STATUSES
+                                if k_run and not ex_run:
+                                    by_ref[r] = k
+                                elif k_run == ex_run and parse_datetime_to_timestamp(k.get("last_run_time")) > parse_datetime_to_timestamp(exist.get("last_run_time")):
+                                    by_ref[r] = k
+                        deduped_kernels = list(by_ref.values())
+                        deduped_kernels.sort(
+                            key=lambda k: parse_datetime_to_timestamp(k.get("last_run_time")),
+                            reverse=True,
+                        )
+                        data["all_kernels"] = deduped_kernels
+                        if "summary" in data:
+                            data["summary"]["total_kernels"] = len(data["all_kernels"])
                     logger.info("Loaded cached data with %d accounts", len(data.get("accounts", [])))
                     return data
             except Exception as e:
@@ -505,6 +691,24 @@ class KaggleMonitorService:
             except Exception:
                 continue
         return None
+
+    def get_all_account_usernames(self):
+        usernames = []
+        for f in self.get_credential_files():
+            try:
+                with open(f, "r", encoding="utf-8") as fp:
+                    c = json.load(fp)
+                    u = c.get("username")
+                    if u and u not in usernames:
+                        usernames.append(u)
+            except Exception:
+                continue
+        if not usernames:
+            for a in self.data.get("accounts", []):
+                u = a.get("username")
+                if u and u not in usernames:
+                    usernames.append(u)
+        return usernames
 
     def fetch_user_profile_info(self, username):
         display_name = username
@@ -790,6 +994,9 @@ class KaggleMonitorService:
                                     ki["enable_internet"] = _read_metadata_bool(meta_d, "enableInternet", ki["enable_internet"])
                                     if meta_d.get("currentVersionNumber") is not None:
                                         ki["version_number"] = meta_d["currentVersionNumber"]
+                                    if meta_d.get("lastRunTime"):
+                                        ki["last_run_time"] = format_datetime(meta_d["lastRunTime"])
+                                        ki["last_run_human"] = time_ago(meta_d["lastRunTime"])
                             except Exception:
                                 pass
                         except Exception as e:
@@ -1033,31 +1240,43 @@ class KaggleMonitorService:
             files = self.get_credential_files()
 
             def update_cached_kernel(account, ref, status, fail_msg, gpu_flag, tpu_flag,
-                                     internet_flag, cur_version):
-                identity = _kernel_identity(account, ref)
+                                     internet_flag, cur_version, last_run_time=None):
+                canon_ref = str(ref or "").strip().lower()
+                fmt_time = format_datetime(last_run_time)
+                ts_new = parse_datetime_to_timestamp(last_run_time)
+
                 for ck in self.data.get("all_kernels", []):
-                    if _kernel_identity(ck.get("account"), ck.get("ref")) == identity or (
-                        not ck.get("account") and ck.get("ref") == ref
-                    ):
+                    ck_canon = str(ck.get("ref") or "").strip().lower()
+                    if ck_canon == canon_ref:
                         ck["status"] = status
                         ck["failure_message"] = fail_msg
                         ck["enable_gpu"] = gpu_flag
                         ck["enable_tpu"] = tpu_flag
                         ck["enable_internet"] = internet_flag
                         ck["version_number"] = cur_version
+                        if fmt_time:
+                            ts_old = parse_datetime_to_timestamp(ck.get("last_run_time"))
+                            if ts_new >= ts_old:
+                                ck["last_run_time"] = fmt_time
+                                ck["last_run_human"] = time_ago(last_run_time)
+                                if status in ACTIVE_KERNEL_STATUSES:
+                                    ck["account"] = account
+
                 for acc in self.data.get("accounts", []):
                     if acc.get("username") != account:
                         continue
                     for ck in acc.get("kernels", []):
-                        if _kernel_identity(ck.get("account"), ck.get("ref")) == identity or (
-                            not ck.get("account") and ck.get("ref") == ref
-                        ):
+                        ck_canon = str(ck.get("ref") or "").strip().lower()
+                        if ck_canon == canon_ref:
                             ck["status"] = status
                             ck["failure_message"] = fail_msg
                             ck["enable_gpu"] = gpu_flag
                             ck["enable_tpu"] = tpu_flag
                             ck["enable_internet"] = internet_flag
                             ck["version_number"] = cur_version
+                            if fmt_time:
+                                ck["last_run_time"] = fmt_time
+                                ck["last_run_human"] = time_ago(last_run_time)
 
             def check_one(fpath):
                 user = ""
@@ -1188,15 +1407,13 @@ class KaggleMonitorService:
                             except Exception:
                                 pass
 
+                        last_run_time = getattr(k, "lastRunTime", None) or getattr(k, "last_run_time", None)
+                        title = getattr(k, "title", ref.split("/")[-1])
                         update_cached_kernel(
                             user, ref, stat_str, fail_msg, gpu_flag, tpu_flag,
-                            internet_flag, cur_version
+                            internet_flag, cur_version, last_run_time=last_run_time
                         )
 
-                        last_run_time = getattr(k, "lastRunTime", None)
-                        if last_run_time is None:
-                            last_run_time = getattr(k, "last_run_time", None)
-                        title = getattr(k, "title", ref.split("/")[-1])
                         if stat_str in {"RUNNING", "RUNNING_INTERACTIVE", "QUEUED"}:
                             found.append({
                                 "account": user,
@@ -1233,21 +1450,19 @@ class KaggleMonitorService:
                 for result in results
                 if not result.get("success") and result.get("username")
             }
-            active_by_identity = {
-                _kernel_identity(item.get("account"), item.get("ref")): item
+            raw_candidates = [
+                item
                 for result in results
                 for item in result.get("items", [])
                 if item.get("account") and item.get("ref")
-            }
+            ]
             if failed_users:
                 # Keep the last known active sessions for accounts that could
                 # not be reached. A network/API error is not evidence that a
                 # running notebook stopped.
                 for item in self.running_cache:
                     if item.get("account") in failed_users and item.get("ref"):
-                        active_by_identity.setdefault(
-                            _kernel_identity(item.get("account"), item.get("ref")), item
-                        )
+                        raw_candidates.append(item)
                 self.running_scan_error = (
                     "Không thể quét live cho: " + ", ".join(sorted(failed_users))
                 )
@@ -1257,10 +1472,16 @@ class KaggleMonitorService:
                 self.running_scan_error = (
                     f"{prefix}{status_error_count} notebook chưa lấy được trạng thái mới; giữ cache cũ"
                 )
-            active_list = list(active_by_identity.values())
+            active_list = _resolve_running_kernels(raw_candidates, getattr(self, "quotas", {}))
             self.running_cache = active_list
             for live_kernel in active_list:
                 self.persist_live_kernel(live_kernel)
+
+            if self.data and "all_kernels" in self.data:
+                self.data["all_kernels"].sort(
+                    key=lambda k: parse_datetime_to_timestamp(k.get("last_run_time")),
+                    reverse=True,
+                )
 
             if self.data and "summary" in self.data:
                 self.data["summary"]["running_kernels"] = len(active_list)
@@ -1319,6 +1540,50 @@ class KaggleMonitorService:
             except Exception as e:
                 return {"success": False, "message": str(e)}
 
+    def _fetch_kernel_stream_log(self, cred, owner, slug, max_lines=300):
+        """Fetch live Server-Sent Events (SSE) console stream for running or shared notebooks."""
+        if not cred:
+            return ""
+        api = KaggleApi()
+        _configure_kaggle_api(api, cred)
+        resp = None
+        chunks = []
+        try:
+            with api.build_kaggle_client() as kaggle:
+                http = kaggle._http_client
+                http._init_session()
+                base = http._endpoint if getattr(http, "_endpoint", None) else "https://api.kaggle.com"
+                url = f"{base}/v1/kernels/logs/stream/{owner}/{slug}"
+                headers = dict(http._session.headers)
+                headers["Accept"] = "text/event-stream, */*"
+                headers.pop("Content-Type", None)
+
+                resp = http._session.get(url, stream=True, headers=headers, auth=http._session.auth, timeout=(3.0, 1.2))
+                for line in resp.iter_lines(decode_unicode=True):
+                    if not line or not line.startswith("data:"):
+                        continue
+                    payload = line[len("data:"):].lstrip()
+                    if payload == "END_OF_LOG":
+                        break
+                    try:
+                        data = json.loads(payload)
+                        if isinstance(data, dict) and "data" in data:
+                            chunks.append(data["data"])
+                    except Exception:
+                        chunks.append(payload)
+                    if len(chunks) >= max_lines:
+                        break
+        except Exception:
+            # Live SSE terminates by buffer boundary or timeout, which is expected
+            pass
+        finally:
+            if resp:
+                try:
+                    resp.close()
+                except Exception:
+                    pass
+        return "".join(chunks)
+
     def get_kernel_live_output(self, account_username, kernel_ref, check_status=False):
         """Fetch the current session status and console log for a running notebook."""
         target_cred = self.get_credential_by_username(account_username)
@@ -1330,57 +1595,100 @@ class KaggleMonitorService:
             else (account_username, kernel_ref)
         )
 
-        with kaggle_api_lock:
-            api = KaggleApi()
-            _configure_kaggle_api(api, target_cred)
-            try:
-                status_str = ""
-                failure_msg = ""
-                status_checked = False
-                log_clean = ""
+        api = KaggleApi()
+        _configure_kaggle_api(api, target_cred)
+        try:
+            status_str = ""
+            failure_msg = ""
+            status_checked = False
+            raw_log = ""
 
-                with api.build_kaggle_client() as client:
-                    if check_status:
-                        req_status = ApiGetKernelSessionStatusRequest()
-                        req_status.user_name = owner
-                        req_status.kernel_slug = slug
-                        try:
-                            status_response = client.kernels.kernels_api_client.get_kernel_session_status(req_status)
-                            status_str = str(getattr(status_response, "status", "")).replace(
-                                "KernelWorkerStatus.", ""
-                            ).upper()
-                            failure_msg = getattr(
-                                status_response,
-                                "failure_message",
-                                getattr(status_response, "failureMessage", ""),
-                            ) or ""
-                            status_checked = bool(status_str)
-                        except Exception as exc:
-                            logger.info("Could not refresh live status for %s: %s", kernel_ref, exc)
+            with api.build_kaggle_client() as client:
+                if check_status:
+                    req_status = ApiGetKernelSessionStatusRequest()
+                    req_status.user_name = owner
+                    req_status.kernel_slug = slug
+                    try:
+                        status_response = client.kernels.kernels_api_client.get_kernel_session_status(req_status)
+                        status_str = str(getattr(status_response, "status", "")).replace(
+                            "KernelWorkerStatus.", ""
+                        ).upper()
+                        failure_msg = getattr(
+                            status_response,
+                            "failure_message",
+                            getattr(status_response, "failureMessage", ""),
+                        ) or ""
+                        status_checked = bool(status_str)
+                    except Exception as exc:
+                        logger.info("Could not refresh live status for %s: %s", kernel_ref, exc)
 
-                    req_output = ApiListKernelSessionOutputRequest()
-                    req_output.user_name = owner
-                    req_output.kernel_slug = slug
+                req_output = ApiListKernelSessionOutputRequest()
+                req_output.user_name = owner
+                req_output.kernel_slug = slug
+                try:
                     output_response = client.kernels.kernels_api_client.list_kernel_session_output(req_output)
-                    log_clean = _clean_kernel_session_log(
-                        getattr(output_response, "log", "") or ""
-                    )
+                    raw_log = getattr(output_response, "log", "") or ""
+                except Exception as exc:
+                    logger.info("Could not fetch output log for %s via %s: %s", kernel_ref, account_username, exc)
 
-                is_active = status_str in ACTIVE_KERNEL_STATUSES if status_checked else None
-                return {
-                    "success": True,
-                    "ref": kernel_ref,
-                    "status": status_str,
-                    "status_checked": status_checked,
-                    "is_active": is_active,
-                    "failure_message": failure_msg,
-                    "output": {
-                        "log": log_clean,
-                        "log_length": len(log_clean),
-                    },
-                }
-            except Exception as e:
-                return {"success": False, "message": str(e)}
+            # If log is empty or notebook is active, fetch from live SSE stream
+            if not raw_log or (status_str in ACTIVE_KERNEL_STATUSES):
+                stream_log = self._fetch_kernel_stream_log(target_cred, owner, slug)
+                if not stream_log and owner != account_username:
+                    owner_cred = self.get_credential_by_username(owner)
+                    if owner_cred:
+                        stream_log = self._fetch_kernel_stream_log(owner_cred, owner, slug)
+                if not stream_log:
+                    running_item = next(
+                        (k for k in self.running_cache if str(k.get("ref") or "").strip().lower() == kernel_ref.strip().lower()),
+                        None
+                    )
+                    if running_item and running_item.get("account") and running_item.get("account") not in (account_username, owner):
+                        alt_cred = self.get_credential_by_username(running_item.get("account"))
+                        if alt_cred:
+                            stream_log = self._fetch_kernel_stream_log(alt_cred, owner, slug)
+                if stream_log:
+                    raw_log = stream_log
+
+            # Fallback to owner static output if still empty and queried with collaborator
+            if not raw_log and owner != account_username:
+                owner_cred = self.get_credential_by_username(owner)
+                if owner_cred:
+                    try:
+                        owner_api = KaggleApi()
+                        _configure_kaggle_api(owner_api, owner_cred)
+                        with owner_api.build_kaggle_client() as o_client:
+                            o_out_res = o_client.kernels.kernels_api_client.list_kernel_session_output(req_output)
+                            if o_out_res and getattr(o_out_res, "log", None):
+                                raw_log = o_out_res.log
+                    except Exception:
+                        pass
+
+            log_clean = _clean_kernel_session_log(raw_log)
+
+            is_active = status_str in ACTIVE_KERNEL_STATUSES if status_checked else None
+            if not log_clean and is_active:
+                log_clean = (
+                    f"⚡ PHIÊN CHẠY ĐANG HOẠT ĐỘNG ({status_str})\n"
+                    f"Tài khoản thực thi: @{account_username} | Chủ sở hữu: @{owner}\n"
+                    f"[Ghi chú]: Kaggle đang khởi tạo worker container hoặc chuẩn bị truyền dữ liệu console.\n"
+                    f"Dashboard đang tự động theo dõi và cập nhật logs mỗi 5 giây..."
+                )
+
+            return {
+                "success": True,
+                "ref": kernel_ref,
+                "status": status_str,
+                "status_checked": status_checked,
+                "is_active": is_active,
+                "failure_message": failure_msg,
+                "output": {
+                    "log": log_clean,
+                    "log_length": len(log_clean),
+                },
+            }
+        except Exception as e:
+            return {"success": False, "message": str(e)}
 
     def get_kernel_details(self, account_username, kernel_ref, version=None):
         target_cred = self.get_credential_by_username(account_username)
@@ -1392,6 +1700,8 @@ class KaggleMonitorService:
         else:
             owner = account_username
             slug = kernel_ref
+
+        v_label = f"v{version}" if version is not None and str(version).isdigit() else (str(version) if version is not None else None)
 
         with kaggle_api_lock:
             api = KaggleApi()
@@ -1415,6 +1725,8 @@ class KaggleMonitorService:
                     req_meta = ApiGetKernelRequest()
                     req_meta.user_name = owner
                     req_meta.kernel_slug = slug
+                    if v_label:
+                        req_meta.version_label = v_label
                     meta = {}
                     blob_source = ""
                     try:
@@ -1431,6 +1743,8 @@ class KaggleMonitorService:
                     req_out = ApiListKernelSessionOutputRequest()
                     req_out.user_name = owner
                     req_out.kernel_slug = slug
+                    if v_label:
+                        req_out.version_label = v_label
                     out_log_raw = ""
                     out_files = []
                     try:
@@ -1447,6 +1761,39 @@ class KaggleMonitorService:
                                     })
                     except Exception as e:
                         logger.warning("Could not get kernel output: %s", e)
+
+                    # If log is empty or notebook is active, fetch from live SSE stream
+                    if not out_log_raw or (status_str in ACTIVE_KERNEL_STATUSES):
+                        stream_log = self._fetch_kernel_stream_log(target_cred, owner, slug)
+                        if not stream_log and owner != account_username:
+                            owner_cred = self.get_credential_by_username(owner)
+                            if owner_cred:
+                                stream_log = self._fetch_kernel_stream_log(owner_cred, owner, slug)
+                        if not stream_log:
+                            running_item = next(
+                                (k for k in self.running_cache if str(k.get("ref") or "").strip().lower() == kernel_ref.strip().lower()),
+                                None
+                            )
+                            if running_item and running_item.get("account") and running_item.get("account") not in (account_username, owner):
+                                alt_cred = self.get_credential_by_username(running_item.get("account"))
+                                if alt_cred:
+                                    stream_log = self._fetch_kernel_stream_log(alt_cred, owner, slug)
+                        if stream_log:
+                            out_log_raw = stream_log
+
+                    # If log is still empty and we queried with a collaborator, try owner cred for static output
+                    if not out_log_raw and owner != account_username:
+                        owner_cred = self.get_credential_by_username(owner)
+                        if owner_cred:
+                            try:
+                                owner_api = KaggleApi()
+                                _configure_kaggle_api(owner_api, owner_cred)
+                                with owner_api.build_kaggle_client() as o_client:
+                                    o_out_res = o_client.kernels.kernels_api_client.list_kernel_session_output(req_out)
+                                    if o_out_res and o_out_res.log:
+                                        out_log_raw = o_out_res.log
+                            except Exception:
+                                pass
 
                     # Also fetch persistent output files via list_kernel_files
                     try:
@@ -1472,7 +1819,50 @@ class KaggleMonitorService:
 
                 # Decode the same event-stream format used by the live poller.
                 log_clean = _clean_kernel_session_log(out_log_raw)
-                if not out_log_raw:
+
+                # Check if this log only contains nbconvert build lines (Quick Save / Code Push)
+                is_quick_save = False
+                if log_clean and "[NbConvertApp]" in log_clean and "to __results__.html" in log_clean:
+                    lines = [ln.strip() for ln in log_clean.strip().splitlines() if ln.strip()]
+                    non_build_lines = [
+                        ln for ln in lines 
+                        if not ln.startswith("[NbConvertApp]") 
+                        and not ("SyntaxWarning" in ln or "invalid escape sequence" in ln or "cells[i]" in ln or "re.sub" in ln)
+                    ]
+                    if len(non_build_lines) == 0:
+                        is_quick_save = True
+
+                if is_quick_save:
+                    running_counterpart = next(
+                        (k for k in self.running_cache if (k.get("ref") or "").split("/")[-1].lower() == slug.lower()),
+                        None
+                    )
+                    running_hint = ""
+                    if running_counterpart:
+                        r_acc = running_counterpart.get("account")
+                        r_ref = running_counterpart.get("ref")
+                        running_hint = (
+                            f"\n⚡ LƯU Ý:\n"
+                            f"Notebook này hiện có một phiên đang chạy thực tế trực tiếp trên tài khoản @{r_acc} (Ref: {r_ref}).\n"
+                            f"Bạn hãy chuyển sang tab 'Notebooks đang chạy' để theo dõi log thời gian thực của phiên đó!\n"
+                        )
+
+                    log_clean = (
+                        f"ℹ️ THÔNG BÁO VỀ LOG PHIÊN CHẠY (HOÀN THÀNH):\n"
+                        f"{'='*70}\n"
+                        f"Phiên bản này được lưu dưới dạng 'Quick Save' (Lưu nhanh) hoặc đẩy mã nguồn từ API,\n"
+                        f"không chạy thực thi code trên GPU/CPU container của Kaggle nên không sinh output console.\n\n"
+                        f"Kaggle chỉ thực hiện bước biên dịch notebook sang HTML:\n"
+                        f"{'-'*70}\n"
+                        f"{log_clean.strip()}\n"
+                        f"{'-'*70}\n"
+                        f"{running_hint}\n"
+                        f"💡 HƯỚNG DẪN:\n"
+                        f"1. Để xem mã nguồn và các cell code đã lưu: Chuyển sang tab 'Mã Nguồn (Code)' bên cạnh.\n"
+                        f"2. Bấm 'Mở trên Kaggle ↗' ở góc trên để mở notebook trực tiếp trên Kaggle.\n"
+                        f"3. Nếu muốn notebook chạy tính toán thực tế và sinh log tiến trình, hãy chọn 'Save & Run All' trên Kaggle."
+                    )
+                elif not out_log_raw:
                     if status_str in ["RUNNING", "RUNNING_INTERACTIVE", "QUEUED"]:
                         cur_v = meta.get("currentVersionNumber", 1) or 1
                         log_clean = (
@@ -1485,7 +1875,15 @@ class KaggleMonitorService:
                             f"Nút 'Mở trên Kaggle ↗' mở trang notebook để xem console trực tiếp."
                         )
                     else:
-                        log_clean = "[Phiên chạy này chưa có output log hoặc log đã được lưu trữ trên giao diện Kaggle]"
+                        log_clean = (
+                            f"📋 THÔNG BÁO VỀ OUTPUT LOG:\n"
+                            f"{'='*70}\n"
+                            f"Phiên chạy này đã hoàn thành nhưng Kaggle không còn lưu cache console stream trực tiếp.\n"
+                            f"(Kaggle tự động giải phóng bộ nhớ đệm console tạm thời sau khi container dừng).\n\n"
+                            f"- Nếu phiên chạy có tạo tệp kết quả: xem tại tab 'Output Files (Tệp kết quả)'\n"
+                            f"- Để xem toàn bộ mã nguồn của notebook: xem tại tab 'Mã Nguồn (Code)'\n"
+                            f"- Để xem giao diện render đầy đủ có cả output từng ô cell: bấm 'Mở trên Kaggle ↗'"
+                        )
 
                 # Versions generator
                 cur_version = meta.get("currentVersionNumber", 1) or 1
@@ -1608,6 +2006,1213 @@ class KaggleMonitorService:
             except Exception as e:
                 return {"success": False, "message": str(e)}
 
+    def get_google_profile_info(self):
+        """Retrieve active Google Chrome profile information (email, name, directory)."""
+        config_path = os.path.join(BASE_DIR, "config.json")
+        info = {
+            "profile_dir": "Default",
+            "email": "truongquockiet1211@gmail.com",
+            "name": "Kiet",
+            "use_primary_for_all": True
+        }
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                    info["profile_dir"] = cfg.get("default_chrome_profile", "Default")
+                    info["email"] = cfg.get("primary_google_email", "truongquockiet1211@gmail.com")
+                    info["name"] = cfg.get("primary_google_name", "Kiet")
+                    info["use_primary_for_all"] = cfg.get("use_primary_profile_for_all", True)
+            except Exception:
+                pass
+        return info
+
+    def open_browser_for_account(self, account_username, url):
+        """Open Chrome browser with the user's primary Google profile (Kiet - truongquockiet1211@gmail.com - Default)
+        so that the user never has to log in again.
+        """
+        config_path = os.path.join(BASE_DIR, "config.json")
+        use_primary_for_all = True
+        profile_dir = "Default"
+        profiles_map = {}
+
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                    use_primary_for_all = cfg.get("use_primary_profile_for_all", True)
+                    profiles_map = cfg.get("chrome_profiles", {})
+                    default_prof = cfg.get("default_chrome_profile", "Default")
+                    if default_prof:
+                        profile_dir = default_prof
+            except Exception:
+                pass
+
+        if not use_primary_for_all and account_username:
+            profile_dir = profiles_map.get(account_username, "Default")
+        elif account_username == "kitnehi1211" or not account_username:
+            profile_dir = "Default"
+
+        opened = False
+        try:
+            if os.name == "nt":  # Windows
+                chrome_candidates = [
+                    os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+                    os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+                    os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
+                ]
+                chrome_exe = next((p for p in chrome_candidates if os.path.exists(p)), None)
+                if chrome_exe and profile_dir:
+                    subprocess.Popen([chrome_exe, f'--profile-directory={profile_dir}', url])
+                    opened = True
+                elif chrome_exe:
+                    subprocess.Popen([chrome_exe, url])
+                    opened = True
+            elif sys.platform.startswith("linux"):
+                chrome_candidates = [
+                    "/opt/google/chrome/chrome",
+                    "/usr/bin/google-chrome",
+                    "/usr/bin/google-chrome-stable",
+                    "/snap/bin/chromium",
+                    "/usr/bin/chromium-browser",
+                    "/usr/bin/chromium"
+                ]
+                chrome_bin = next((p for p in chrome_candidates if os.path.exists(p)), None)
+                if chrome_bin and profile_dir:
+                    subprocess.Popen([chrome_bin, f'--profile-directory={profile_dir}', url])
+                    opened = True
+                elif chrome_bin:
+                    subprocess.Popen([chrome_bin, url])
+                    opened = True
+
+            if not opened:
+                webbrowser.open(url)
+                opened = True
+        except Exception as e:
+            logger.warning("Could not launch browser for account %s: %s", account_username, e)
+            try:
+                webbrowser.open(url)
+                opened = True
+            except Exception:
+                opened = False
+        return opened
+
+    def cancel_kernel(self, account_username, kernel_ref):
+        """Attempt to cancel an active kernel session via Kaggle API, with fallback browser launch."""
+        target_cred = self.get_credential_by_username(account_username)
+        if not target_cred:
+            return {"success": False, "message": f"Không tìm thấy credential cho tài khoản {account_username}"}
+
+        owner, slug = (
+            kernel_ref.split("/", 1) if "/" in kernel_ref
+            else (account_username, kernel_ref)
+        )
+
+        api_success = False
+        api_error = ""
+
+        creds_to_try = [target_cred]
+        if owner != account_username:
+            owner_cred = self.get_credential_by_username(owner)
+            if owner_cred and owner_cred not in creds_to_try:
+                creds_to_try.append(owner_cred)
+
+        for cred in creds_to_try:
+            try:
+                api = KaggleApi()
+                _configure_kaggle_api(api, cred)
+                with api.build_kaggle_client() as client:
+                    req_meta = ApiGetKernelRequest()
+                    req_meta.user_name = owner
+                    req_meta.kernel_slug = slug
+                    mres = client.kernels.kernels_api_client.get_kernel(req_meta)
+                    if mres and mres.metadata and getattr(mres.metadata, "id", None):
+                        session_id = mres.metadata.id
+                        cancel_req = ApiCancelKernelSessionRequest()
+                        cancel_req.kernel_session_id = session_id
+                        client.kernels.kernels_api_client.cancel_kernel_session(cancel_req)
+                        api_success = True
+                        break
+            except Exception as exc:
+                api_error = str(exc)
+
+        if api_success:
+            for item in self.running_cache:
+                if str(item.get("ref", "")).lower() == kernel_ref.lower():
+                    item["status"] = "CANCEL_ACKNOWLEDGED"
+            self.save_cache()
+            return {
+                "success": True,
+                "api_cancelled": True,
+                "ref": kernel_ref,
+                "account": account_username,
+                "message": f"Đã gửi yêu cầu hủy phiên chạy notebook {kernel_ref} thành công qua Kaggle API!"
+            }
+
+        url = f"https://www.kaggle.com/code/{owner}/{slug}"
+        opened = self.open_browser_for_account(account_username, url)
+        return {
+            "success": True,
+            "api_cancelled": False,
+            "opened_browser": opened,
+            "url": url,
+            "ref": kernel_ref,
+            "account": account_username,
+            "message": (
+                f"Kaggle API giới hạn quyền hủy phiên qua API Token (cần session Web). "
+                f"Dashboard đã tự động mở đúng trình duyệt của tài khoản @{account_username} "
+                f"để bạn bấm Dừng tức thì trên trang!" if opened else
+                f"Kaggle API giới hạn quyền hủy phiên qua token. Vui lòng mở trực tiếp trên Kaggle để bấm Dừng: {url}"
+            )
+        }
+
+    def delete_kernel(self, account_username, kernel_ref):
+        """Attempt to permanently delete a kernel on Kaggle via Kaggle API."""
+        target_cred = self.get_credential_by_username(account_username)
+        if not target_cred:
+            return {"success": False, "message": f"Không tìm thấy credential cho tài khoản {account_username}"}
+
+        owner, slug = (
+            kernel_ref.split("/", 1) if "/" in kernel_ref
+            else (account_username, kernel_ref)
+        )
+
+        creds_to_try = []
+        owner_cred = self.get_credential_by_username(owner)
+        if owner_cred:
+            creds_to_try.append(owner_cred)
+        if target_cred not in creds_to_try:
+            creds_to_try.append(target_cred)
+
+        api_success = False
+        api_error = ""
+
+        for cred in creds_to_try:
+            try:
+                api = KaggleApi()
+                _configure_kaggle_api(api, cred)
+                with api.build_kaggle_client() as client:
+                    del_req = ApiDeleteKernelRequest()
+                    del_req.user_name = owner
+                    del_req.kernel_slug = slug
+                    res = client.kernels.kernels_api_client.delete_kernel(del_req)
+                    if res and getattr(res, "error_message", None):
+                        api_error = str(res.error_message)
+                        continue
+                    api_success = True
+                    break
+            except Exception as exc:
+                api_error = str(exc)
+                logger.warning(f"Failed to delete kernel {owner}/{slug} with cred {cred.get('username')}: {exc}")
+
+        if api_success:
+            # Remove from running_cache and cached_kernels if present
+            self.running_cache = [
+                item for item in self.running_cache 
+                if str(item.get("ref", "")).lower() != kernel_ref.lower()
+            ]
+            if hasattr(self, 'cached_kernels'):
+                self.cached_kernels = [
+                    item for item in self.cached_kernels 
+                    if str(item.get("ref", "")).lower() != kernel_ref.lower()
+                ]
+            self.save_cache()
+
+            # Also update training history status if present
+            try:
+                history_file = self.cache_dir / "training_history.json"
+                if history_file.exists():
+                    import json
+                    history = json.loads(history_file.read_text(encoding="utf-8"))
+                    for h in history:
+                        if str(h.get("ref", "")).lower() == kernel_ref.lower():
+                            h["status"] = "DELETED"
+                    history_file.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
+            except Exception as e:
+                logger.warning(f"Error updating history file for deleted kernel: {e}")
+
+            return {
+                "success": True,
+                "message": f"Đã xóa vĩnh viễn notebook {kernel_ref} trên tài khoản @{owner}!",
+                "ref": kernel_ref,
+                "account": owner
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Không thể xóa notebook {kernel_ref} qua API: {api_error}",
+                "error": api_error
+            }
+
+    def get_notebook_source_and_meta(self, account_username, kernel_ref):
+        """Fetch full source code and metadata of an existing kernel for runner pre-fill."""
+        target_cred = self.get_credential_by_username(account_username)
+        if not target_cred:
+            target_cred = self.get_credential_by_username("kitnehi1211")
+        if not target_cred:
+            c_files = self.get_credential_files()
+            if c_files:
+                target_cred = self.get_credential_by_username(os.path.basename(c_files[0]))
+        if not target_cred:
+            return {"success": False, "message": f"Không tìm thấy credential cho {account_username}"}
+
+        owner, slug = (
+            kernel_ref.split("/", 1) if "/" in kernel_ref
+            else (account_username, kernel_ref)
+        )
+
+        with kaggle_api_lock:
+            api = KaggleApi()
+            _configure_kaggle_api(api, target_cred)
+            try:
+                with api.build_kaggle_client() as client:
+                    req_meta = ApiGetKernelRequest()
+                    req_meta.user_name = owner
+                    req_meta.kernel_slug = slug
+                    res = client.kernels.kernels_api_client.get_kernel(req_meta)
+                    if not res:
+                        return {"success": False, "message": "Không tìm thấy notebook trên Kaggle"}
+                    
+                    meta = res.metadata.to_dict() if res.metadata else {}
+                    source = ""
+                    if hasattr(res, "blob") and res.blob:
+                        source = getattr(res.blob, "source", "") or ""
+
+                    kernel_type = meta.get("kernelType", "notebook")
+                    machine_shape = meta.get("machineShape", "")
+                    if not machine_shape and meta.get("enableGpu"):
+                        machine_shape = "NvidiaTeslaT4"
+                    elif not machine_shape and meta.get("enableTpu"):
+                        machine_shape = "Tpu1VmV38"
+
+                    return {
+                        "success": True,
+                        "ref": f"{owner}/{slug}",
+                        "owner": owner,
+                        "slug": slug,
+                        "title": meta.get("title", slug),
+                        "language": meta.get("language", "python"),
+                        "kernel_type": kernel_type,
+                        "is_notebook": (kernel_type == "notebook"),
+                        "is_private": meta.get("isPrivate", True),
+                        "enable_gpu": meta.get("enableGpu", False),
+                        "enable_tpu": meta.get("enableTpu", False),
+                        "enable_internet": meta.get("enableInternet", True),
+                        "machine_shape": machine_shape,
+                        "dataset_sources": meta.get("datasetDataSources", []) or [],
+                        "kernel_sources": meta.get("kernelDataSources", []) or [],
+                        "competition_sources": meta.get("competitionDataSources", []) or [],
+                        "source_code": source,
+                    }
+            except Exception as e:
+                logger.error("Error fetching kernel source and meta: %s", e)
+                return {"success": False, "message": str(e)}
+
+    def push_and_run_kernel(
+        self,
+        target_account: str,
+        slug: str,
+        title: str,
+        source_code: str,
+        machine_shape: str = "NvidiaTeslaT4",
+        enable_internet: bool = True,
+        is_private: bool = True,
+        dataset_sources: list = None,
+        kernel_sources: list = None,
+        competition_sources: list = None,
+        is_notebook: bool = True,
+        language: str = "python",
+        session_timeout_seconds: int = None,
+        backup_to_master: bool = False
+    ):
+        """Push and trigger execution of a kernel on a specific target Kaggle account."""
+        target_cred = self.get_credential_by_username(target_account)
+        if not target_cred:
+            return {"success": False, "message": f"Không tìm thấy credential cho tài khoản {target_account}"}
+
+        # Optional backup copy to kitnehi1211
+        if backup_to_master and target_account != "kitnehi1211" and self.get_credential_by_username("kitnehi1211"):
+            try:
+                self.push_and_run_kernel(
+                    target_account="kitnehi1211",
+                    slug=slug,
+                    title=title,
+                    source_code=source_code,
+                    machine_shape="",
+                    enable_internet=enable_internet,
+                    is_private=True,
+                    dataset_sources=dataset_sources,
+                    kernel_sources=kernel_sources,
+                    competition_sources=competition_sources,
+                    is_notebook=is_notebook,
+                    language=language,
+                    backup_to_master=False
+                )
+                logger.info("Backed up copy of notebook to @kitnehi1211")
+            except Exception as e:
+                logger.warning("Could not backup copy to @kitnehi1211: %s", e)
+
+        clean_slug = re.sub(r'[^a-zA-Z0-9\-]+', '-', slug.strip().lower()).strip('-')
+        if not clean_slug:
+            clean_slug = "notebook-" + str(int(time.time()))
+        
+        clean_title = title.strip() if title and title.strip() else clean_slug
+        if len(clean_title) < 5:
+            clean_title = f"{clean_title} Run"
+
+        formatted_source = source_code or ""
+        if is_notebook:
+            try:
+                nb_json = json.loads(source_code) if source_code.strip().startswith("{") else None
+                if nb_json and "cells" in nb_json:
+                    for cell in nb_json["cells"]:
+                        if cell.get("cell_type") == "code":
+                            cell["outputs"] = []
+                            cell["execution_count"] = None
+                        if "source" in cell and isinstance(cell["source"], list):
+                            cell["source"] = "".join(cell["source"])
+                    formatted_source = json.dumps(nb_json)
+                else:
+                    formatted_source = json.dumps({
+                        "cells": [
+                            {
+                                "cell_type": "code",
+                                "execution_count": None,
+                                "metadata": {},
+                                "outputs": [],
+                                "source": source_code
+                            }
+                        ],
+                        "metadata": {
+                            "language_info": {"name": "python"}
+                        },
+                        "nbformat": 4,
+                        "nbformat_minor": 4
+                    })
+            except Exception as e:
+                logger.warning("source_code was not json, wrapped into notebook cells: %s", e)
+                formatted_source = json.dumps({
+                    "cells": [
+                        {
+                            "cell_type": "code",
+                            "execution_count": None,
+                            "metadata": {},
+                            "outputs": [],
+                            "source": source_code
+                        }
+                    ],
+                    "metadata": {
+                        "language_info": {"name": "python"}
+                    },
+                    "nbformat": 4,
+                    "nbformat_minor": 4
+                })
+
+        shape_val = (machine_shape or "").strip()
+        enable_gpu = False
+        enable_tpu = False
+        if "Tesla" in shape_val or "gpu" in shape_val.lower() or shape_val == "gpu":
+            enable_gpu = True
+            if not shape_val or shape_val == "gpu":
+                shape_val = "NvidiaTeslaT4"
+        elif "Tpu" in shape_val or "tpu" in shape_val.lower() or shape_val == "tpu":
+            enable_tpu = True
+            if not shape_val or shape_val == "tpu":
+                shape_val = "Tpu1VmV38"
+        else:
+            shape_val = None
+
+        full_slug = f"{target_account}/{clean_slug}"
+
+        with kaggle_api_lock:
+            api = KaggleApi()
+            _configure_kaggle_api(api, target_cred)
+            try:
+                with api.build_kaggle_client() as client:
+                    request = ApiSaveKernelRequest()
+                    request.slug = full_slug
+                    request.new_title = clean_title
+                    request.text = formatted_source
+                    request.language = language or "python"
+                    request.kernel_type = "notebook" if is_notebook else "script"
+                    request.is_private = bool(is_private)
+                    request.enable_internet = bool(enable_internet)
+                    request.enable_gpu = enable_gpu
+                    request.enable_tpu = enable_tpu
+                    if shape_val:
+                        request.machine_shape = shape_val
+                    if session_timeout_seconds and session_timeout_seconds > 0:
+                        request.session_timeout_seconds = int(session_timeout_seconds)
+
+                    # Robust source cleaner & URL normalizer (handles https://www.kaggle.com/code/... and https://www.kaggle.com/datasets/...)
+                    raw_datasets = dataset_sources or []
+                    raw_kernels = kernel_sources or []
+                    raw_comps = competition_sources or []
+
+                    final_datasets = []
+                    final_kernels = []
+                    final_comps = []
+
+                    def _clean_source(item):
+                        s = str(item or "").strip()
+                        s = re.sub(r'[\?\#].*$', '', s).strip('/')
+                        m_c = re.search(r'kaggle\.com/code/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
+                        if m_c:
+                            return 'kernel', f"{m_c.group(1)}/{m_c.group(2)}"
+                        m_d = re.search(r'kaggle\.com/datasets/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
+                        if m_d:
+                            return 'dataset', f"{m_d.group(1)}/{m_d.group(2)}"
+                        m_comp = re.search(r'kaggle\.com/competitions/([a-zA-Z0-9_\-]+)', s)
+                        if m_comp:
+                            return 'competition', m_comp.group(1)
+                        m_m = re.search(r'kaggle\.com/models/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
+                        if m_m:
+                            return 'dataset', f"{m_m.group(1)}/{m_m.group(2)}"
+                        return None, s
+
+                    for item in raw_datasets:
+                        stype, sval = _clean_source(item)
+                        if stype == 'kernel':
+                            final_kernels.append(sval)
+                        elif stype == 'competition':
+                            final_comps.append(sval)
+                        elif sval:
+                            final_datasets.append(sval)
+
+                    for item in raw_kernels:
+                        stype, sval = _clean_source(item)
+                        if stype == 'dataset':
+                            final_datasets.append(sval)
+                        elif stype == 'competition':
+                            final_comps.append(sval)
+                        elif sval:
+                            final_kernels.append(sval)
+
+                    for item in raw_comps:
+                        stype, sval = _clean_source(item)
+                        if sval:
+                            final_comps.append(sval)
+
+                    final_datasets = list(dict.fromkeys(final_datasets))
+                    final_kernels = list(dict.fromkeys(final_kernels))
+                    final_comps = list(dict.fromkeys(final_comps))
+
+                    # Auto-share private datasets across accounts if needed!
+                    auto_shared_notes = []
+                    if final_datasets:
+                        for ds_clean in final_datasets:
+                            if "/" in ds_clean:
+                                ds_owner, ds_slug = ds_clean.split("/", 1)
+                                if ds_owner != target_account and self.get_credential_by_username(ds_owner):
+                                    try:
+                                        share_res = self.share_dataset_collaborators(
+                                            owner_account=ds_owner,
+                                            dataset_slug=ds_slug,
+                                            collaborator_usernames=[target_account],
+                                            role="READER"
+                                        )
+                                        if share_res.get("success"):
+                                            auto_shared_notes.append(f"Đã tự động cấp quyền {ds_clean} cho @{target_account}")
+                                            logger.info("Auto-shared dataset %s from @%s to @%s", ds_slug, ds_owner, target_account)
+                                    except Exception as e:
+                                        logger.warning("Could not auto-share dataset %s to %s: %s", ds_clean, target_account, e)
+                        request.dataset_data_sources = final_datasets
+
+                    if final_kernels:
+                        request.kernel_data_sources = final_kernels
+                    if final_comps:
+                        request.competition_data_sources = final_comps
+
+                    response = client.kernels.kernels_api_client.save_kernel(request)
+
+                    if response.error:
+                        return {
+                            "success": False,
+                            "error": response.error,
+                            "message": f"Kaggle báo lỗi: {response.error}",
+                            "invalid_dataset_sources": getattr(response, "invalid_dataset_sources", []),
+                            "invalid_kernel_sources": getattr(response, "invalid_kernel_sources", []),
+                        }
+
+                    kernel_url = getattr(response, "url", f"https://www.kaggle.com/code/{full_slug}")
+                    v_num = getattr(response, "version_number", getattr(response, "versionNumber", 1))
+
+                    new_running = {
+                        "account": target_account,
+                        "ref": full_slug,
+                        "title": clean_title,
+                        "status": "QUEUED",
+                        "url": kernel_url,
+                        "is_private": is_private,
+                        "enable_gpu": enable_gpu,
+                        "enable_tpu": enable_tpu,
+                        "enable_internet": enable_internet,
+                        "machine_shape": shape_val or ("NvidiaTeslaT4" if enable_gpu else "CPU"),
+                        "start_time": datetime.now(timezone.utc).isoformat(),
+                        "last_run_time": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                        "run_seconds": 0,
+                        "run_duration_human": "Vừa khởi chạy",
+                        "failure_message": "",
+                        "version_number": v_num
+                    }
+
+                    self.running_cache = [k for k in self.running_cache if str(k.get("ref", "")).lower() != full_slug.lower()]
+                    self.running_cache.insert(0, new_running)
+                    self.persist_live_kernel(new_running)
+                    self.save_cache()
+
+                    hist_entry = {
+                        "id": f"run-{int(time.time())}-{target_account}",
+                        "account": target_account,
+                        "ref": full_slug,
+                        "title": clean_title,
+                        "slug": clean_slug,
+                        "status": "QUEUED",
+                        "url": kernel_url,
+                        "machine_shape": shape_val or ("NvidiaTeslaT4" if enable_gpu else "CPU"),
+                        "dataset_sources": request.dataset_data_sources or [],
+                        "start_time": datetime.now(timezone.utc).isoformat(),
+                        "start_time_human": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
+                        "auto_shared": auto_shared_notes,
+                    }
+                    self.append_training_history(hist_entry)
+
+                    return {
+                        "success": True,
+                        "message": f"Đã gửi lệnh chạy notebook thành công trên tài khoản @{target_account}!",
+                        "ref": full_slug,
+                        "account": target_account,
+                        "url": kernel_url,
+                        "version_number": v_num,
+                        "running_item": new_running
+                    }
+            except Exception as e:
+                logger.error("Exception in push_and_run_kernel: %s", e)
+                return {"success": False, "message": str(e), "error": str(e)}
+
+    def get_input_suggestions(self, query: str = "", limit: int = 50):
+        """Provide autocomplete suggestions for datasets and kernels from synced cache."""
+        q = (query or "").strip().lower()
+        results = []
+
+        # Frequently used pinned datasets (e.g. ZaloAI Datasets & Wheel packages)
+        pinned = [
+            {
+                "type": "dataset",
+                "ref": "thanhkhil/zaloai-lifemate-dataset",
+                "title": "ZaloAI-LifeMate-Dataset (thanhkhil)",
+                "account": "thanhkhil",
+                "size": "ZaloAI 2024",
+                "url": "https://www.kaggle.com/datasets/thanhkhil/zaloai-lifemate-dataset",
+                "last_updated": "Pinned"
+            },
+            {
+                "type": "dataset",
+                "ref": "thanhkhil/zaloai-datamate-dataset",
+                "title": "ZaloAI-DataMate-Dataset (thanhkhil)",
+                "account": "thanhkhil",
+                "size": "ZaloAI 2024",
+                "url": "https://www.kaggle.com/datasets/thanhkhil/zaloai-datamate-dataset",
+                "last_updated": "Pinned"
+            },
+            {
+                "type": "kernel",
+                "ref": "kitnehi1211/build-wheels",
+                "title": "build-wheels (Wheel Packages)",
+                "account": "kitnehi1211",
+                "status": "COMPLETE",
+                "url": "https://www.kaggle.com/code/kitnehi1211/build-wheels",
+                "last_updated": "Pinned"
+            }
+        ]
+
+        seen_refs = set()
+        for p in pinned:
+            if not q or (q in p["ref"].lower() or q in p["title"].lower() or q in p["account"].lower()):
+                results.append(p)
+                seen_refs.add(p["ref"].lower())
+
+        all_datasets = self.data.get("all_datasets", [])
+        for d in all_datasets:
+            ref = str(d.get("ref", ""))
+            if ref.lower() in seen_refs:
+                continue
+            title = str(d.get("title", ""))
+            acc = str(d.get("account", ""))
+            if not q or (q in ref.lower() or q in title.lower() or q in acc.lower()):
+                results.append({
+                    "type": "dataset",
+                    "ref": ref,
+                    "title": title or ref,
+                    "account": acc,
+                    "size": d.get("size", ""),
+                    "url": d.get("url", f"https://www.kaggle.com/datasets/{ref}"),
+                    "last_updated": d.get("last_updated_human", "")
+                })
+                seen_refs.add(ref.lower())
+                if len(results) >= limit:
+                    break
+
+        all_kernels = self.data.get("all_kernels", [])
+        for k in all_kernels:
+            ref = str(k.get("ref", ""))
+            title = str(k.get("title", ""))
+            acc = str(k.get("account", ""))
+            if not q or (q in ref.lower() or q in title.lower() or q in acc.lower()):
+                results.append({
+                    "type": "kernel",
+                    "ref": ref,
+                    "title": title or ref,
+                    "account": acc,
+                    "status": k.get("status", ""),
+                    "url": k.get("url", f"https://www.kaggle.com/code/{ref}"),
+                    "last_updated": k.get("last_run_human", "")
+                })
+                if len(results) >= limit * 2:
+                    break
+
+        return results
+
+    def get_gpu_recommendations(self):
+        """Analyze account quotas and return recommendations sorted by remaining GPU hours."""
+        quotas_info = self.get_quotas_overview()
+        accounts_quota = quotas_info.get("accounts_quota", [])
+        
+        active_counts = {}
+        for r in self.running_cache:
+            acc = r.get("account", "")
+            active_counts[acc] = active_counts.get(acc, 0) + 1
+
+        recommendations = []
+        for acc in accounts_quota:
+            username = acc.get("username", "")
+            gpu_rem = float(acc.get("gpu_remaining", 0.0) or 0.0)
+            gpu_lim = float(acc.get("gpu_limit", 30.0) or 30.0)
+            tpu_rem = float(acc.get("tpu_remaining", 0.0) or 0.0)
+            tpu_lim = float(acc.get("tpu_limit", 20.0) or 20.0)
+            runs = active_counts.get(username, 0)
+            valid = acc.get("valid", True)
+            
+            score = gpu_rem - (runs * 8.0)
+            
+            recommendations.append({
+                "username": username,
+                "gpu_remaining": gpu_rem,
+                "gpu_limit": gpu_lim,
+                "gpu_percent": round((gpu_rem / gpu_lim * 100), 1) if gpu_lim > 0 else 0,
+                "tpu_remaining": tpu_rem,
+                "tpu_limit": tpu_lim,
+                "active_runs": runs,
+                "valid": valid,
+                "score": score,
+                "is_available": (gpu_rem >= 1.0 and runs < 2 and valid),
+                "label": f"{username} (Còn {gpu_rem}h GPU - {runs} notebook đang chạy)"
+            })
+
+        recommendations.sort(key=lambda x: x["score"], reverse=True)
+        if recommendations and recommendations[0]["gpu_remaining"] >= 1.0:
+            recommendations[0]["is_best"] = True
+
+        return recommendations
+
+    def share_dataset_collaborators(self, owner_account: str, dataset_slug: str, collaborator_usernames: list, role: str = "WRITER"):
+        """Automatically add collaborators to a private or public dataset via Kaggle SDK."""
+        target_cred = self.get_credential_by_username(owner_account)
+        if not target_cred:
+            return {"success": False, "message": f"Không tìm thấy credential cho {owner_account}"}
+
+        owner = owner_account
+        slug = dataset_slug
+        if "/" in dataset_slug:
+            owner, slug = dataset_slug.split("/", 1)
+
+        role_enum = CollaboratorType.WRITER if str(role).upper() in ["WRITER", "EDIT", "EDITOR"] else CollaboratorType.READER
+
+        with kaggle_api_lock:
+            api = KaggleApi()
+            _configure_kaggle_api(api, target_cred)
+            try:
+                with api.build_kaggle_client() as client:
+                    req_get = ApiGetDatasetMetadataRequest()
+                    req_get.owner_slug = owner
+                    req_get.dataset_slug = slug
+                    res_get = client.datasets.dataset_api_client.get_dataset_metadata(req_get)
+                    
+                    settings = DatasetSettings()
+                    current_info = getattr(res_get, "info", None)
+                    if current_info:
+                        tit = getattr(current_info, "title", None)
+                        if tit and isinstance(tit, str):
+                            settings.title = tit
+                        sub = getattr(current_info, "subtitle", None)
+                        if sub and isinstance(sub, str):
+                            settings.subtitle = sub
+                        desc = getattr(current_info, "description", None)
+                        if desc and isinstance(desc, str):
+                            settings.description = desc
+                        settings.is_private = bool(getattr(current_info, "is_private", True))
+
+                    # Kaggle SDK requires exactly one license
+                    lic_name = "CC0-1.0"
+                    if current_info and getattr(current_info, "licenses", None):
+                        lics = getattr(current_info, "licenses")
+                        if isinstance(lics, list) and len(lics) > 0:
+                            first_lic = lics[0]
+                            n = getattr(first_lic, "name", None)
+                            if n and isinstance(n, str):
+                                lic_name = n
+                            elif isinstance(first_lic, dict) and "name" in first_lic:
+                                lic_name = str(first_lic["name"])
+                    lic = SettingsLicense()
+                    lic.name = str(lic_name)
+                    settings.licenses = [lic]
+                    
+                    # Keep all existing collaborators and merge new ones
+                    existing_roles = {}
+                    if current_info and getattr(current_info, "collaborators", None):
+                        for c in getattr(current_info, "collaborators"):
+                            uname = getattr(c, "username", None)
+                            crole = getattr(c, "role", None)
+                            if uname and str(uname) != owner:
+                                existing_roles[str(uname)] = CollaboratorType.WRITER if "WRITER" in str(crole).upper() else CollaboratorType.READER
+
+                    for uname in collaborator_usernames:
+                        uname = str(uname).strip()
+                        if uname and uname != owner:
+                            existing_roles[uname] = role_enum
+
+                    collab_objs = []
+                    for uname, urole in existing_roles.items():
+                        c = DatasetCollaborator()
+                        c.username = uname
+                        c.role = urole
+                        collab_objs.append(c)
+
+                    settings.collaborators = collab_objs
+
+                    req_update = ApiUpdateDatasetMetadataRequest()
+                    req_update.owner_slug = owner
+                    req_update.dataset_slug = slug
+                    req_update.settings = settings
+
+                    res_update = client.datasets.dataset_api_client.update_dataset_metadata(req_update)
+                    errors = getattr(res_update, "errors", None)
+                    if errors and len(errors) > 0:
+                        err_str = "; ".join(str(e) for e in errors)
+                        logger.error("Kaggle update_dataset_metadata error: %s", err_str)
+                        return {"success": False, "message": f"Kaggle từ chối: {err_str}"}
+
+                    saved_collabs = list(existing_roles.keys())
+
+                    # Update local cache
+                    ref_key = f"{owner}/{slug}"
+                    all_ds = self.data.get("all_datasets", [])
+                    for d in all_ds:
+                        if d.get("ref") == ref_key or d.get("ref", "").endswith(f"/{slug}"):
+                            d["collaborators"] = saved_collabs
+                            break
+                    self.save_cache()
+
+                    return {
+                        "success": True,
+                        "message": f"Đã chia sẻ thành công dataset {owner}/{slug} cho {len(saved_collabs)} tài khoản!",
+                        "collaborators": saved_collabs
+                    }
+            except Exception as e:
+                logger.error("Error sharing dataset: %s", e)
+                return {"success": False, "message": str(e)}
+
+    def get_dataset_collaborators(self, owner_account: str, dataset_slug: str):
+        """Fetch real-time list of collaborators for a dataset from Kaggle."""
+        owner = owner_account
+        slug = dataset_slug
+        if "/" in dataset_slug:
+            owner, slug = dataset_slug.split("/", 1)
+
+        target_cred = self.get_credential_by_username(owner)
+        if not target_cred:
+            ref_key = f"{owner}/{slug}"
+            for d in self.data.get("all_datasets", []):
+                if d.get("ref") == ref_key:
+                    return {
+                        "success": True,
+                        "owner": owner,
+                        "slug": slug,
+                        "collaborators": [
+                            {"username": u, "role": "WRITER"} for u in d.get("collaborators", [])
+                        ],
+                        "source": "cache"
+                    }
+            return {"success": False, "message": f"Không có credential để kiểm tra quyền của @{owner}"}
+
+        with kaggle_api_lock:
+            api = KaggleApi()
+            _configure_kaggle_api(api, target_cred)
+            try:
+                with api.build_kaggle_client() as client:
+                    req_get = ApiGetDatasetMetadataRequest()
+                    req_get.owner_slug = owner
+                    req_get.dataset_slug = slug
+                    res_get = client.datasets.dataset_api_client.get_dataset_metadata(req_get)
+                    info = getattr(res_get, "info", None)
+                    collabs = []
+                    if info and getattr(info, "collaborators", None):
+                        for c in getattr(info, "collaborators"):
+                            uname = getattr(c, "username", None)
+                            role = getattr(c, "role", None)
+                            role_str = "WRITER" if "WRITER" in str(role).upper() else "READER"
+                            if uname:
+                                collabs.append({"username": uname, "role": role_str})
+
+                    # Update local cache
+                    ref_key = f"{owner}/{slug}"
+                    for d in self.data.get("all_datasets", []):
+                        if d.get("ref") == ref_key:
+                            d["collaborators"] = [c["username"] for c in collabs]
+                            break
+                    self.save_cache()
+
+                    return {
+                        "success": True,
+                        "owner": owner,
+                        "slug": slug,
+                        "collaborators": collabs,
+                        "source": "kaggle_live"
+                    }
+            except Exception as e:
+                logger.error("Error getting dataset collaborators: %s", e)
+                return {"success": False, "message": str(e)}
+
+    def check_dataset_slug_available(self, slug: str, target_account: str = "kitnehi1211"):
+        """Check if a dataset slug is already taken on Kaggle or in local cache."""
+        target_cred = self.get_credential_by_username(target_account)
+        if not target_cred:
+            return {"available": False, "message": f"Không tìm thấy credential cho {target_account}"}
+        
+        clean_slug = re.sub(r'[^a-zA-Z0-9\-]+', '-', slug.strip().lower()).strip('-')
+        ref = f"{target_account}/{clean_slug}"
+        
+        # Check local cache first
+        all_ds = self.data.get("all_datasets", [])
+        for d in all_ds:
+            if d.get("ref", "").lower() == ref.lower():
+                return {"available": False, "ref": ref, "message": f"Dataset '{ref}' đã có trong danh sách local!"}
+        
+        # Check live Kaggle
+        with kaggle_api_lock:
+            api = KaggleApi()
+            _configure_kaggle_api(api, target_cred)
+            try:
+                status = api.dataset_status(ref)
+                if status:
+                    return {"available": False, "ref": ref, "message": f"Dataset '{ref}' đã tồn tại trên Kaggle!"}
+            except Exception:
+                # 404 or not found means available
+                pass
+        return {"available": True, "ref": ref, "message": "Slug hợp lệ và có thể sử dụng!"}
+
+    def update_dataset_privacy(self, dataset_ref: str, is_private: bool):
+        """Update dataset privacy (Private <-> Public) on Kaggle."""
+        owner = "kitnehi1211"
+        slug = dataset_ref
+        if "/" in dataset_ref:
+            owner, slug = dataset_ref.split("/", 1)
+        
+        target_cred = self.get_credential_by_username(owner)
+        if not target_cred:
+            return {"success": False, "message": f"Không tìm thấy credential cho tài khoản {owner}"}
+
+        with kaggle_api_lock:
+            api = KaggleApi()
+            _configure_kaggle_api(api, target_cred)
+            try:
+                with api.build_kaggle_client() as client:
+                    req_get = ApiGetDatasetMetadataRequest()
+                    req_get.owner_slug = owner
+                    req_get.dataset_slug = slug
+                    res_get = client.datasets.dataset_api_client.get_dataset_metadata(req_get)
+                    
+                    settings = DatasetSettings()
+                    current_info = getattr(res_get, "info", None)
+                    if current_info:
+                        tit = getattr(current_info, "title", None)
+                        if tit and isinstance(tit, str):
+                            settings.title = tit
+                        sub = getattr(current_info, "subtitle", None)
+                        if sub and isinstance(sub, str):
+                            settings.subtitle = sub
+                        desc = getattr(current_info, "description", None)
+                        if desc and isinstance(desc, str):
+                            settings.description = desc
+                        collabs = getattr(current_info, "collaborators", None)
+                        if collabs and isinstance(collabs, list):
+                            settings.collaborators = collabs
+                    
+                    # Exactly one license is required by Kaggle SDK
+                    lic_name = "CC0-1.0"
+                    if current_info and getattr(current_info, "licenses", None):
+                        lics = getattr(current_info, "licenses")
+                        if isinstance(lics, list) and len(lics) > 0:
+                            first_lic = lics[0]
+                            n = getattr(first_lic, "name", None)
+                            if n and isinstance(n, str):
+                                lic_name = n
+                            elif isinstance(first_lic, dict) and "name" in first_lic:
+                                lic_name = str(first_lic["name"])
+                    lic = SettingsLicense()
+                    lic.name = str(lic_name)
+                    settings.licenses = [lic]
+
+                    # Kaggle Policy Check: Public datasets CANNOT be reverted to Private
+                    current_is_private = getattr(current_info, "is_private", None)
+                    if current_is_private is None:
+                        for d in self.data.get("all_datasets", []):
+                            if d.get("ref") == f"{owner}/{slug}":
+                                current_is_private = d.get("is_private")
+                                break
+
+                    if current_is_private is False and is_private:
+                        return {
+                            "success": False,
+                            "message": (
+                                "Theo chính sách của Kaggle, Dataset một khi đã được chuyển sang Public "
+                                "sẽ không thể chuyển ngược lại về Private (để bảo vệ các notebook và quy trình "
+                                "của cộng đồng đang phụ thuộc vào dataset này). Nếu muốn bảo mật lại dữ liệu, "
+                                "bạn cần xóa dataset này trên Kaggle và tạo một dataset Private mới."
+                            )
+                        }
+
+                    settings.is_private = bool(is_private)
+
+                    req_update = ApiUpdateDatasetMetadataRequest()
+                    req_update.owner_slug = owner
+                    req_update.dataset_slug = slug
+                    req_update.settings = settings
+
+                    res_update = client.datasets.dataset_api_client.update_dataset_metadata(req_update)
+                    errors = getattr(res_update, "errors", None)
+                    if errors and len(errors) > 0:
+                        return {"success": False, "message": "; ".join(str(e) for e in errors)}
+
+                    # Update in cache
+                    all_ds = self.data.get("all_datasets", [])
+                    for d in all_ds:
+                        if d.get("ref") == f"{owner}/{slug}":
+                            d["is_private"] = bool(is_private)
+                            break
+                    self.save_cache()
+
+                    status_label = "Private (Riêng tư)" if is_private else "Public (Công khai)"
+                    return {
+                        "success": True,
+                        "message": f"Đã cập nhật quyền dataset {owner}/{slug} thành {status_label}!",
+                        "is_private": bool(is_private),
+                        "ref": f"{owner}/{slug}"
+                    }
+            except Exception as e:
+                logger.error("Error updating dataset privacy: %s", e)
+                return {"success": False, "message": str(e)}
+
+    def create_dataset(
+        self,
+        title: str,
+        slug: str = None,
+        is_private: bool = True,
+        local_folder_path: str = None,
+        file_tuples: list = None,
+        description: str = "",
+        license_name: str = "CC0-1.0",
+        subtitle: str = "",
+        target_account: str = "kitnehi1211",
+        auto_share_all: bool = True
+    ):
+        """Create a new dataset on Kaggle under kitnehi1211 (or target account)."""
+        target_cred = self.get_credential_by_username(target_account)
+        if not target_cred:
+            return {"success": False, "message": f"Không tìm thấy credential cho tài khoản {target_account}"}
+
+        # 1. Title formatting & validation (6 - 50 chars)
+        clean_title = (title or "").strip()
+        if not clean_title:
+            return {"success": False, "message": "Vui lòng nhập tên Dataset (Title)."}
+        if len(clean_title) < 6:
+            clean_title = f"{clean_title} Dataset"[:50]
+        if len(clean_title) > 50:
+            clean_title = clean_title[:50]
+        if len(clean_title) < 6:
+            clean_title = clean_title.ljust(6, "-")
+
+        # 2. Slug formatting & validation (6 - 50 chars, alphanumeric and hyphens)
+        raw_slug = slug.strip() if slug and slug.strip() else clean_title
+        clean_slug = re.sub(r'[^a-zA-Z0-9\-]+', '-', raw_slug.lower()).strip('-')
+        clean_slug = re.sub(r'-+', '-', clean_slug)
+        if len(clean_slug) < 6:
+            clean_slug = f"{clean_slug}-dataset"[:50]
+        if len(clean_slug) < 6:
+            clean_slug = f"dataset-{int(time.time())}"
+        if len(clean_slug) > 50:
+            clean_slug = clean_slug[:50].rstrip('-')
+        if len(clean_slug) < 6:
+            clean_slug = clean_slug.ljust(6, '0')
+
+        # 3. Subtitle validation (Kaggle requires 20 - 80 chars if specified)
+        clean_subtitle = (subtitle or "").strip()
+        if clean_subtitle and (len(clean_subtitle) < 20 or len(clean_subtitle) > 80):
+            if len(clean_subtitle) < 20:
+                clean_subtitle = ""  # Omit rather than failing Kaggle validation
+            elif len(clean_subtitle) > 80:
+                clean_subtitle = clean_subtitle[:80]
+
+        # 4. Prepare staging directory
+        staging_dir = tempfile.mkdtemp(prefix="kaggle_ds_staging_")
+        try:
+            file_count = 0
+            # A. Process uploaded file tuples: [(filename, file_content_or_path)]
+            if file_tuples:
+                for fname, fcontent in file_tuples:
+                    if not fname:
+                        continue
+                    clean_fname = os.path.basename(fname.strip())
+                    if not clean_fname:
+                        continue
+                    dest_path = os.path.join(staging_dir, clean_fname)
+                    if isinstance(fcontent, bytes):
+                        with open(dest_path, "wb") as f_out:
+                            f_out.write(fcontent)
+                    elif isinstance(fcontent, str) and os.path.isfile(fcontent):
+                        shutil.copy2(fcontent, dest_path)
+                    elif hasattr(fcontent, "read"):
+                        with open(dest_path, "wb") as f_out:
+                            while True:
+                                chunk = fcontent.read(1024 * 1024)
+                                if not chunk:
+                                    break
+                                f_out.write(chunk)
+                    file_count += 1
+
+            # B. Process local folder path if provided
+            if local_folder_path and local_folder_path.strip():
+                l_path = local_folder_path.strip().strip('"').strip("'")
+                if not os.path.isdir(l_path):
+                    return {"success": False, "message": f"Thư mục cục bộ không tồn tại: {l_path}"}
+                for item in os.listdir(l_path):
+                    s = os.path.join(l_path, item)
+                    d = os.path.join(staging_dir, item)
+                    if item in ["dataset-metadata.json", "datapackage.json"]:
+                        continue
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d, dirs_exist_ok=True)
+                        file_count += 1
+                    else:
+                        shutil.copy2(s, d)
+                        file_count += 1
+
+            if file_count == 0:
+                return {
+                    "success": False,
+                    "message": "Cần ít nhất một file hoặc thư mục dữ liệu để tạo dataset trên Kaggle."
+                }
+
+            # 5. Create dataset-metadata.json
+            ref_str = f"{target_account}/{clean_slug}"
+            meta_data = {
+                "title": clean_title,
+                "id": ref_str,
+                "licenses": [{"name": license_name or "CC0-1.0"}],
+                "description": description or ""
+            }
+            if clean_subtitle:
+                meta_data["subtitle"] = clean_subtitle
+
+            meta_file = os.path.join(staging_dir, "dataset-metadata.json")
+            with open(meta_file, "w", encoding="utf-8") as mf:
+                json.dump(meta_data, mf, indent=2)
+
+            # 6. Call Kaggle API
+            with kaggle_api_lock:
+                api = KaggleApi()
+                _configure_kaggle_api(api, target_cred)
+                try:
+                    res = api.dataset_create_new(
+                        folder=staging_dir,
+                        public=not is_private,
+                        quiet=False,
+                        dir_mode="zip"
+                    )
+                except Exception as e:
+                    logger.error("Error creating dataset via KaggleApi: %s", e)
+                    return {"success": False, "message": f"Lỗi từ Kaggle API: {str(e)}"}
+
+            err = getattr(res, "error", None)
+            if err:
+                return {"success": False, "message": str(err)}
+
+            # 7. Calculate file size & update local cache
+            total_bytes = 0
+            for r, _, files in os.walk(staging_dir):
+                for fn in files:
+                    if fn != "dataset-metadata.json":
+                        fp = os.path.join(r, fn)
+                        try:
+                            total_bytes += os.path.getsize(fp)
+                        except Exception:
+                            pass
+
+            dataset_url = f"https://www.kaggle.com/datasets/{ref_str}"
+            new_entry = {
+                "account": target_account,
+                "ref": ref_str,
+                "title": clean_title,
+                "url": dataset_url,
+                "size_bytes": total_bytes,
+                "size_human": format_bytes(total_bytes),
+                "download_count": 0,
+                "view_count": 0,
+                "is_private": bool(is_private),
+                "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "last_updated_human": "Vừa tạo"
+            }
+
+            all_ds = self.data.get("all_datasets", [])
+            self.data["all_datasets"] = [new_entry] + [d for d in all_ds if d.get("ref") != ref_str]
+            self.save_cache()
+
+            # 8. Auto-share with all other accounts in the pool if requested
+            shared_collabs = []
+            if auto_share_all and is_private:
+                try:
+                    all_users = self.get_all_account_usernames()
+                    other_accounts = [u for u in all_users if u and u != target_account]
+                    if other_accounts:
+                        share_res = self.share_dataset_collaborators(
+                            owner_account=target_account,
+                            dataset_slug=clean_slug,
+                            collaborator_usernames=other_accounts,
+                            role="WRITER"
+                        )
+                        if share_res.get("success"):
+                            shared_collabs = share_res.get("collaborators", other_accounts)
+                except Exception as e_share:
+                    logger.warning("Could not auto-share dataset with all accounts: %s", e_share)
+
+            privacy_label = "Private (Riêng tư)" if is_private else "Public (Công khai)"
+            success_msg = f"Tạo dataset '{clean_title}' ({privacy_label}) thành công trên Kaggle!"
+            if shared_collabs:
+                success_msg += f" Đã tự động chia sẻ quyền Editor cho {len(shared_collabs)} tài khoản trong pool!"
+
+            return {
+                "success": True,
+                "message": success_msg,
+                "ref": ref_str,
+                "url": dataset_url,
+                "is_private": bool(is_private),
+                "dataset": new_entry,
+                "collaborators": shared_collabs
+            }
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+
+
     def refresh_quotas_live(self):
         """Fetch weekly GPU/TPU balances from Kaggle for every credential."""
         if not self._quota_scan_lock.acquire(blocking=False):
@@ -1667,10 +3272,12 @@ class KaggleMonitorService:
                         total = _duration_to_hours(getattr(quota, "total_time_allowed", None))
                         if used is None or total is None:
                             continue
+                        reserved_sec = _duration_to_seconds(getattr(quota, "time_reserved", None))
                         result[resource_name] = {
                             "used_hours": max(0.0, used),
                             "total_hours": max(0.0, total),
                             "remaining_hours": max(0.0, total - used),
+                            "reserved_seconds": max(0.0, reserved_sec),
                         }
 
                     if result["gpu"] is None and result["tpu"] is None:
@@ -1724,6 +3331,8 @@ class KaggleMonitorService:
                         "gpu_remaining": round(gpu["remaining_hours"], 4),
                         "gpu_used_hours": round(gpu["used_hours"], 4),
                         "gpu_total_hours": round(gpu["total_hours"], 4),
+                        "gpu_reserved_seconds": round(gpu.get("reserved_seconds", 0.0), 2),
+                        "time_reserved_seconds": round(gpu.get("reserved_seconds", 0.0), 2),
                         "gpu_quota_known": True,
                     })
                 if result.get("tpu") is not None:
@@ -1731,6 +3340,7 @@ class KaggleMonitorService:
                         "tpu_remaining": round(tpu["remaining_hours"], 4),
                         "tpu_used_hours": round(tpu["used_hours"], 4),
                         "tpu_total_hours": round(tpu["total_hours"], 4),
+                        "tpu_reserved_seconds": round(tpu.get("reserved_seconds", 0.0), 2),
                         "tpu_quota_known": True,
                     })
                 record["quota_source"] = "kaggle_api"
@@ -2053,18 +3663,28 @@ class KaggleMonitorService:
             all_datasets = []
             all_competitions = []
 
-            seen_kernel_identities = set()
+            seen_kernel_refs = {}
             seen_dataset_refs = set()
 
             for acc in accounts_data:
                 for k in acc.get("kernels", []):
-                    k_ref = k.get("ref")
-                    k_identity = _kernel_identity(k.get("account"), k_ref)
-                    if k_ref and k_identity not in seen_kernel_identities:
-                        seen_kernel_identities.add(k_identity)
+                    k_ref = (k.get("ref") or "").strip().lower()
+                    if not k_ref:
                         all_kernels.append(k)
-                    elif not k_ref:
+                        continue
+                    if k_ref not in seen_kernel_refs:
+                        seen_kernel_refs[k_ref] = k
                         all_kernels.append(k)
+                    else:
+                        existing = seen_kernel_refs[k_ref]
+                        k_run = str(k.get("status") or "").upper() in ACTIVE_KERNEL_STATUSES
+                        ex_run = str(existing.get("status") or "").upper() in ACTIVE_KERNEL_STATUSES
+                        if k_run and not ex_run:
+                            all_kernels[all_kernels.index(existing)] = k
+                            seen_kernel_refs[k_ref] = k
+                        elif k_run == ex_run and parse_datetime_to_timestamp(k.get("last_run_time")) > parse_datetime_to_timestamp(existing.get("last_run_time")):
+                            all_kernels[all_kernels.index(existing)] = k
+                            seen_kernel_refs[k_ref] = k
 
                 for d in acc.get("datasets", []):
                     d_ref = d.get("ref")
@@ -2077,7 +3697,10 @@ class KaggleMonitorService:
                 for c in acc.get("competitions", []):
                     all_competitions.append(c)
 
-            all_kernels.sort(key=lambda x: x.get("last_run_time") or "", reverse=True)
+            all_kernels.sort(
+                key=lambda x: parse_datetime_to_timestamp(x.get("last_run_time")),
+                reverse=True,
+            )
             all_datasets.sort(key=lambda x: x.get("last_updated") or "", reverse=True)
 
             new_item_count = len(all_kernels) + len(all_datasets) + len(all_competitions)
@@ -2148,5 +3771,150 @@ class KaggleMonitorService:
             return False, str(e)
         finally:
             self.is_refreshing = False
+
+    def list_local_notebooks(self):
+        """Scan user's Desktop projects for local .ipynb notebooks."""
+        desktop_dir = os.path.abspath(os.path.join(BASE_DIR, ".."))
+        notebooks = []
+        
+        ignored_names = {
+            ".git", ".venv", "node_modules", "__pycache__", "AppData", "cache",
+            ".codegraph", ".cache", "dist", "build"
+        }
+        
+        for root, dirs, files in os.walk(desktop_dir):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ignored_names]
+            for f in files:
+                if f.endswith(".ipynb"):
+                    full_p = os.path.join(root, f)
+                    try:
+                        sz = os.path.getsize(full_p)
+                        mtime = os.path.getmtime(full_p)
+                        rel_p = os.path.relpath(full_p, desktop_dir).replace("\\", "/")
+                        parent_folder = os.path.basename(os.path.dirname(full_p))
+                        
+                        notebooks.append({
+                            "rel_path": rel_p,
+                            "filename": f,
+                            "folder": parent_folder,
+                            "size_kb": round(sz / 1024, 1),
+                            "full_path": full_p,
+                            "mtime": mtime,
+                            "mtime_human": datetime.fromtimestamp(mtime).strftime("%d/%m/%Y %H:%M")
+                        })
+                    except Exception:
+                        pass
+        
+        notebooks.sort(key=lambda x: x["mtime"], reverse=True)
+        return notebooks
+
+    def read_local_notebook(self, rel_or_full_path):
+        """Read a local notebook file, extract clean title, slug, and detect input datasets referenced in code."""
+        desktop_dir = os.path.abspath(os.path.join(BASE_DIR, ".."))
+        target_path = rel_or_full_path
+        if not os.path.isabs(target_path):
+            target_path = os.path.join(desktop_dir, rel_or_full_path)
+            
+        if not os.path.exists(target_path):
+            target_path = os.path.join(BASE_DIR, rel_or_full_path)
+            if not os.path.exists(target_path):
+                return {"success": False, "message": f"Không tìm thấy file: {rel_or_full_path}"}
+
+        try:
+            with open(target_path, "r", encoding="utf-8", errors="ignore") as fp:
+                raw_content = fp.read()
+                
+            cell_count = 0
+            if raw_content.strip().startswith("{"):
+                try:
+                    nb_json = json.loads(raw_content)
+                    cell_count = len(nb_json.get("cells", []))
+                except Exception:
+                    pass
+
+            fname = os.path.basename(target_path)
+            clean_title = re.sub(r"\.[^/.]+$", "", fname).replace("_", " ").replace("-", " ").strip()
+            clean_slug = re.sub(r"[^a-zA-Z0-9\-]+", "-", fname.lower().replace(".ipynb", "").replace(".py", "")).strip("-")
+            
+            detected_slugs = list(set(re.findall(r"/kaggle/input/([a-zA-Z0-9_\-]+)", raw_content)))
+            
+            all_cached_datasets = self.data.get("datasets", [])
+            all_cached_kernels = self.data.get("kernels", [])
+            matched_dataset_sources = []
+            matched_kernel_sources = []
+            
+            for dslug in detected_slugs:
+                if dslug in ("datasets", "notebooks", "input"):
+                    continue
+                if dslug == "zaloai-lifemate-dataset" or dslug == "lifemate-dataset":
+                    matched_dataset_sources.append("thanhkhil/zaloai-lifemate-dataset")
+                    continue
+                if dslug == "zaloai-datamate-dataset" or dslug == "datamate-dataset":
+                    matched_dataset_sources.append("thanhkhil/zaloai-datamate-dataset")
+                    continue
+                if dslug == "build-wheels":
+                    matched_kernel_sources.append("kitnehi1211/build-wheels")
+                    continue
+
+                ds_match = next((d for d in all_cached_datasets if d.get("ref", "").lower().endswith(f"/{dslug.lower()}") or d.get("slug", "").lower() == dslug.lower()), None)
+                if ds_match:
+                    matched_dataset_sources.append(ds_match["ref"])
+                else:
+                    k_match = next((k for k in all_cached_kernels if k.get("ref", "").lower().endswith(f"/{dslug.lower()}") or k.get("slug", "").lower() == dslug.lower()), None)
+                    if k_match:
+                        matched_kernel_sources.append(k_match["ref"])
+                    elif self.get_credential_by_username("kitnehi1211"):
+                        matched_dataset_sources.append(f"kitnehi1211/{dslug}")
+
+            return {
+                "success": True,
+                "filename": fname,
+                "path": rel_or_full_path,
+                "title": clean_title,
+                "slug": clean_slug,
+                "source_code": raw_content,
+                "is_notebook": fname.endswith(".ipynb"),
+                "cell_count": cell_count,
+                "size_kb": round(len(raw_content) / 1024, 1),
+                "detected_inputs": detected_slugs,
+                "matched_dataset_sources": list(dict.fromkeys(matched_dataset_sources)),
+                "matched_kernel_sources": list(dict.fromkeys(matched_kernel_sources))
+            }
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi đọc file notebook: {e}"}
+
+    def get_training_history(self):
+        """Retrieve the central training history across all accounts."""
+        if not os.path.exists(HISTORY_FILE):
+            return []
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                history = json.load(f)
+                if not isinstance(history, list):
+                    return []
+                all_k = {str(k.get("ref", "")).lower(): k for k in self.data.get("all_kernels", [])}
+                running_k = {str(k.get("ref", "")).lower(): k for k in self.running_cache}
+                for h in history:
+                    ref_lower = str(h.get("ref", "")).lower()
+                    if ref_lower in running_k:
+                        h["status"] = running_k[ref_lower].get("status", h.get("status"))
+                        h["run_seconds"] = running_k[ref_lower].get("run_seconds", 0)
+                    elif ref_lower in all_k:
+                        h["status"] = all_k[ref_lower].get("status", h.get("status"))
+                return history
+        except Exception:
+            return []
+
+    def append_training_history(self, record):
+        """Append a run record to the central training history log."""
+        history = self.get_training_history()
+        history = [r for r in history if r.get("id") != record.get("id")]
+        history.insert(0, record)
+        history = history[:150]
+        try:
+            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+                json.dump(history, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning("Could not save training history: %s", e)
 
 monitor_service = KaggleMonitorService()
