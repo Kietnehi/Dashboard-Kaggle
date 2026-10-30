@@ -455,6 +455,14 @@ def get_runner_history():
     """Get the central training run history across all accounts."""
     return monitor_service.get_training_history()
 
+@app.post("/api/runner/history/delete")
+def delete_runner_history(req: dict = Body(...)):
+    """Delete a run entry from central training history and cleanup from Kaggle."""
+    run_id = req.get("id")
+    account = req.get("account")
+    ref = req.get("ref")
+    return monitor_service.delete_training_history_entry(run_id=run_id, ref=ref, account=account)
+
 @app.get("/api/datasets/collaborators")
 def get_dataset_collaborators(ref: str = Query(..., description="Dataset ref (owner/slug)")):
     """Get real-time collaborators for a dataset from Kaggle or cache."""

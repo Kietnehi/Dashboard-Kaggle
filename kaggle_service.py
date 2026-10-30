@@ -2205,7 +2205,13 @@ class KaggleMonitorService:
                 api_error = str(exc)
                 logger.warning(f"Failed to delete kernel {owner}/{slug} with cred {cred.get('username')}: {exc}")
 
-        if api_success:
+        is_already_gone = False
+        if not api_success and api_error:
+            err_lower = api_error.lower()
+            if any(k in err_lower for k in ["403", "404", "not found", "forbidden", "cannot access kernel"]):
+                is_already_gone = True
+
+        if api_success or is_already_gone:
             # Remove from running_cache and cached_kernels if present
             self.running_cache = [
                 item for item in self.running_cache 
@@ -2216,24 +2222,33 @@ class KaggleMonitorService:
                     item for item in self.cached_kernels 
                     if str(item.get("ref", "")).lower() != kernel_ref.lower()
                 ]
+            for acc in self.data.get("accounts", []):
+                acc["kernels"] = [
+                    k for k in acc.get("kernels", [])
+                    if str(k.get("ref", "")).lower() != kernel_ref.lower()
+                ]
+            self.data["all_kernels"] = [
+                k for k in self.data.get("all_kernels", [])
+                if str(k.get("ref", "")).lower() != kernel_ref.lower()
+            ]
             self.save_cache()
 
-            # Also update training history status if present
+            # Also remove from training_history.json
             try:
-                history_file = self.cache_dir / "training_history.json"
-                if history_file.exists():
-                    import json
-                    history = json.loads(history_file.read_text(encoding="utf-8"))
-                    for h in history:
-                        if str(h.get("ref", "")).lower() == kernel_ref.lower():
-                            h["status"] = "DELETED"
-                    history_file.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
+                if os.path.exists(HISTORY_FILE):
+                    with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                        history = json.load(f)
+                    if isinstance(history, list):
+                        history = [h for h in history if str(h.get("ref", "")).lower() != kernel_ref.lower()]
+                        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+                            json.dump(history, f, indent=2, ensure_ascii=False)
             except Exception as e:
                 logger.warning(f"Error updating history file for deleted kernel: {e}")
 
+            msg = f"Đã xóa vĩnh viễn notebook {kernel_ref} trên tài khoản @{owner}!" if api_success else f"Notebook {kernel_ref} không còn tồn tại trên Kaggle. Đã dọn sạch khỏi hệ thống!"
             return {
                 "success": True,
-                "message": f"Đã xóa vĩnh viễn notebook {kernel_ref} trên tài khoản @{owner}!",
+                "message": msg,
                 "ref": kernel_ref,
                 "account": owner
             }
@@ -2243,6 +2258,28 @@ class KaggleMonitorService:
                 "message": f"Không thể xóa notebook {kernel_ref} qua API: {api_error}",
                 "error": api_error
             }
+
+    def delete_training_history_entry(self, run_id=None, ref=None, account=None):
+        """Remove a run entry from training history and also clean up on Kaggle if possible."""
+        try:
+            if os.path.exists(HISTORY_FILE):
+                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+                if isinstance(history, list):
+                    if run_id:
+                        history = [h for h in history if h.get("id") != run_id]
+                    elif ref:
+                        history = [h for h in history if str(h.get("ref", "")).lower() != str(ref).lower()]
+                    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+                        json.dump(history, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"Error removing run from training history: {e}")
+
+        # Also attempt to delete the kernel if ref provided
+        if ref and account:
+            self.delete_kernel(account, ref)
+
+        return {"success": True, "message": "Đã xóa lượt chạy khỏi Sổ cái huấn luyện!"}
 
     def get_notebook_source_and_meta(self, account_username, kernel_ref):
         """Fetch full source code and metadata of an existing kernel for runner pre-fill."""
@@ -3845,12 +3882,6 @@ class KaggleMonitorService:
             
             for dslug in detected_slugs:
                 if dslug in ("datasets", "notebooks", "input"):
-                    continue
-                if dslug == "zaloai-lifemate-dataset" or dslug == "lifemate-dataset":
-                    matched_dataset_sources.append("thanhkhil/zaloai-lifemate-dataset")
-                    continue
-                if dslug == "zaloai-datamate-dataset" or dslug == "datamate-dataset":
-                    matched_dataset_sources.append("thanhkhil/zaloai-datamate-dataset")
                     continue
                 if dslug == "build-wheels":
                     matched_kernel_sources.append("kitnehi1211/build-wheels")
