@@ -91,5 +91,61 @@ class TestLiveConsoleRunner(unittest.TestCase):
         clean_slug = re.sub(r'[^a-zA-Z0-9\-]+', '-', clean_slug.lower()).strip('-')
         self.assertEqual(clean_slug, "lifemate-agent-sft-oracle")
 
+    def test_push_and_run_kernel_save_only_quick_save(self):
+        from kagglesdk.kernels.types.kernels_enums import KernelExecutionType
+        
+        with patch("kaggle_service.KaggleApi") as mock_api_cls:
+            mock_api = MagicMock()
+            mock_api_cls.return_value = mock_api
+            mock_client = MagicMock()
+            mock_api.build_kaggle_client.return_value.__enter__.return_value = mock_client
+            
+            mock_save_resp = MagicMock()
+            mock_save_resp.error = None
+            mock_save_resp.url = "https://www.kaggle.com/code/kitnehi1211/test-slug"
+            mock_save_resp.version_number = 5
+            mock_client.kernels.kernels_api_client.save_kernel.return_value = mock_save_resp
+            
+            with patch.object(monitor_service, "get_credential_by_username", return_value={"username": "kitnehi1211", "key": "abc"}):
+                res = monitor_service.push_and_run_kernel(
+                    target_account="kitnehi1211",
+                    slug="test-slug",
+                    title="Test Notebook",
+                    source_code="# print('hello')",
+                    save_only=True
+                )
+                
+                # Check save_kernel called with QUICK_SAVE
+                self.assertTrue(mock_client.kernels.kernels_api_client.save_kernel.called)
+                save_req = mock_client.kernels.kernels_api_client.save_kernel.call_args[0][0]
+                self.assertEqual(save_req.kernel_execution_type, KernelExecutionType.QUICK_SAVE)
+                self.assertFalse(save_req.enable_gpu)
+                self.assertFalse(save_req.machine_shape)
+                
+                # Verify result
+                self.assertTrue(res.get("success"))
+                self.assertTrue(res.get("saved_only"))
+                self.assertEqual(res.get("version_number"), 5)
+                
+                # Verify NOT enqueued in running_cache
+                for r in monitor_service.running_cache:
+                    self.assertNotEqual(r.get("ref"), "kitnehi1211/test-slug")
+
+    def test_share_notebook_datasets_delegation(self):
+        def fake_cred(u):
+            return {"username": "kitnehi1211", "key": "abc"} if u == "kitnehi1211" else None
+
+        with patch.object(monitor_service, "get_credential_by_username", side_effect=fake_cred):
+            with patch.object(monitor_service, "share_dataset_collaborators", return_value={"success": True}) as mock_share:
+                res = monitor_service.share_notebook_datasets(
+                    owner_account="kitnehi1211",
+                    dataset_sources=["kitnehi1211/my-dataset", "thanhkhil/other-dataset"],
+                    collaborator_usernames=["baovuong3009", "lngchip"],
+                    role="WRITER"
+                )
+                self.assertTrue(res.get("success"))
+                # Only datasets owned by credentials available (kitnehi1211) get shared
+                self.assertEqual(mock_share.call_count, 1)
+
 if __name__ == "__main__":
     unittest.main()

@@ -156,6 +156,13 @@ class KernelRunRequest(BaseModel):
     language: Optional[str] = "python"
     session_timeout_seconds: Optional[int] = None
     backup_to_master: Optional[bool] = False
+    save_only: Optional[bool] = False
+
+class NotebookShareDatasetsRequest(BaseModel):
+    owner_account: str
+    dataset_sources: Optional[List[str]] = []
+    collaborators: List[str]
+    role: Optional[str] = "WRITER"
 
 class DatasetShareRequest(BaseModel):
     owner_account: str
@@ -449,9 +456,20 @@ def run_notebook(req: KernelRunRequest):
         is_notebook=req.is_notebook,
         language=req.language,
         session_timeout_seconds=req.session_timeout_seconds,
-        backup_to_master=req.backup_to_master
+        backup_to_master=req.backup_to_master,
+        save_only=bool(req.save_only)
     )
     return result
+
+@app.post("/api/runner/share-notebook-datasets")
+def share_notebook_datasets_api(req: NotebookShareDatasetsRequest):
+    """Auto-share input datasets of a notebook with collaborators."""
+    return monitor_service.share_notebook_datasets(
+        owner_account=req.owner_account,
+        dataset_sources=req.dataset_sources or [],
+        collaborator_usernames=req.collaborators,
+        role=req.role or "WRITER"
+    )
 
 @app.get("/api/runner/history")
 def get_runner_history():

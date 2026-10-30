@@ -53,7 +53,7 @@ from kagglesdk.kernels.services.kernels_api_service import (
     ApiSaveKernelRequest,
     ApiSaveKernelResponse,
 )
-from kagglesdk.kernels.types.kernels_enums import KernelsListSortType, KernelsListViewType
+from kagglesdk.kernels.types.kernels_enums import KernelsListSortType, KernelsListViewType, KernelExecutionType
 from kagglesdk.datasets.types.dataset_enums import DatasetSelectionGroup, DatasetSortBy
 from kagglesdk.datasets.types.dataset_api_service import ApiListDatasetsRequest, ApiUpdateDatasetMetadataRequest, ApiGetDatasetMetadataRequest
 from kagglesdk.datasets.types.dataset_types import DatasetSettings, DatasetCollaborator, CollaboratorType, SettingsLicense
@@ -2455,7 +2455,8 @@ class KaggleMonitorService:
         is_notebook: bool = True,
         language: str = "python",
         session_timeout_seconds: int = None,
-        backup_to_master: bool = False
+        backup_to_master: bool = False,
+        save_only: bool = False
     ):
         """Push and trigger execution of a kernel on a specific target Kaggle account."""
         target_cred = self.get_credential_by_username(target_account)
@@ -2547,14 +2548,17 @@ class KaggleMonitorService:
         shape_val = (machine_shape or "").strip()
         enable_gpu = False
         enable_tpu = False
-        if "Tesla" in shape_val or "gpu" in shape_val.lower() or shape_val == "gpu":
-            enable_gpu = True
-            if not shape_val or shape_val == "gpu":
-                shape_val = "NvidiaTeslaT4"
-        elif "Tpu" in shape_val or "tpu" in shape_val.lower() or shape_val == "tpu":
-            enable_tpu = True
-            if not shape_val or shape_val == "tpu":
-                shape_val = "Tpu1VmV38"
+        if not save_only:
+            if "Tesla" in shape_val or "gpu" in shape_val.lower() or shape_val == "gpu":
+                enable_gpu = True
+                if not shape_val or shape_val == "gpu":
+                    shape_val = "NvidiaTeslaT4"
+            elif "Tpu" in shape_val or "tpu" in shape_val.lower() or shape_val == "tpu":
+                enable_tpu = True
+                if not shape_val or shape_val == "tpu":
+                    shape_val = "Tpu1VmV38"
+            else:
+                shape_val = None
         else:
             shape_val = None
 
@@ -2573,10 +2577,17 @@ class KaggleMonitorService:
                     request.kernel_type = "notebook" if is_notebook else "script"
                     request.is_private = bool(is_private)
                     request.enable_internet = bool(enable_internet)
-                    request.enable_gpu = enable_gpu
-                    request.enable_tpu = enable_tpu
-                    if shape_val:
-                        request.machine_shape = shape_val
+                    if save_only:
+                        request.kernel_execution_type = KernelExecutionType.QUICK_SAVE
+                        request.enable_gpu = False
+                        request.enable_tpu = False
+                        request.machine_shape = None
+                    else:
+                        request.kernel_execution_type = KernelExecutionType.SAVE_AND_RUN_ALL
+                        request.enable_gpu = enable_gpu
+                        request.enable_tpu = enable_tpu
+                        if shape_val:
+                            request.machine_shape = shape_val
                     if session_timeout_seconds and session_timeout_seconds > 0:
                         request.session_timeout_seconds = int(session_timeout_seconds)
 
@@ -2662,6 +2673,24 @@ class KaggleMonitorService:
 
                     kernel_url = getattr(response, "url", f"https://www.kaggle.com/code/{full_slug}")
                     v_num = getattr(response, "version_number", getattr(response, "versionNumber", 1))
+
+                    if save_only:
+                        logger.info("Notebook %s successfully saved as version %s (QUICK_SAVE - no execution)", full_slug, v_num)
+                        # Update cached kernel info if present
+                        for k in self.data.get("all_kernels", []):
+                            if str(k.get("ref", "")).lower() == full_slug.lower():
+                                k["totalVersions"] = v_num
+                                k["lastRunTime"] = datetime.now(timezone.utc).isoformat()
+                        self.save_cache()
+                        return {
+                            "success": True,
+                            "saved_only": True,
+                            "message": f"Đã lưu thành công phiên bản mới (v{v_num}) lên Kaggle (Quick Save - không chạy)",
+                            "ref": full_slug,
+                            "account": target_account,
+                            "url": kernel_url,
+                            "version_number": v_num
+                        }
 
                     new_running = {
                         "account": target_account,
@@ -2947,6 +2976,32 @@ class KaggleMonitorService:
             except Exception as e:
                 logger.error("Error sharing dataset: %s", e)
                 return {"success": False, "message": str(e)}
+
+    def share_notebook_datasets(self, owner_account: str, dataset_sources: list, collaborator_usernames: list, role: str = "WRITER"):
+        """Automatically share all input datasets of a notebook with collaborator accounts."""
+        if not dataset_sources:
+            return {"success": True, "message": "Notebook không có dataset nguồn nào cần cấp quyền.", "details": []}
+
+        shared_results = []
+        for ds in dataset_sources:
+            ds_clean = str(ds or "").strip()
+            if not ds_clean:
+                continue
+            ds_owner, ds_slug = ds_clean.split("/", 1) if "/" in ds_clean else (owner_account, ds_clean)
+            if self.get_credential_by_username(ds_owner):
+                res = self.share_dataset_collaborators(
+                    owner_account=ds_owner,
+                    dataset_slug=ds_slug,
+                    collaborator_usernames=collaborator_usernames,
+                    role=role
+                )
+                shared_results.append({"dataset": ds_clean, "owner": ds_owner, "result": res})
+
+        return {
+            "success": True,
+            "message": f"Đã thực hiện chia sẻ {len(shared_results)} dataset(s) cho cộng tác viên.",
+            "details": shared_results
+        }
 
     def get_dataset_collaborators(self, owner_account: str, dataset_slug: str):
         """Fetch real-time list of collaborators for a dataset from Kaggle."""

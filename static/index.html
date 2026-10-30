@@ -792,6 +792,39 @@
         <div class="lg:col-span-7 space-y-4">
           <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4">
             
+            <!-- Edit Mode Banner (Visible only when editing an existing notebook) -->
+            <div id="trainerEditModeBanner" class="hidden p-3.5 bg-gradient-to-r from-amber-50 via-indigo-50 to-purple-50 border border-amber-300/80 rounded-xl flex items-center justify-between gap-3 flex-wrap animate-in fade-in duration-200 shadow-xs">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs flex-shrink-0">
+                  <i data-lucide="edit-3" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs font-bold text-slate-900 tracking-wide uppercase">Đang Chỉnh Sửa Notebook:</span>
+                    <span id="editModeRefBadge" class="text-xs font-mono font-bold text-indigo-800 bg-indigo-100 border border-indigo-200 px-2.5 py-0.5 rounded-md">--</span>
+                    <span id="editModeVersionBadge" class="text-[10px] font-bold text-purple-800 bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-full">--</span>
+                  </div>
+                  <p class="text-[11px] text-slate-600 mt-1 flex items-center gap-1.5 flex-wrap">
+                    <span class="inline-flex items-center gap-1 text-amber-700 font-medium">
+                      <i data-lucide="lock" class="w-3 h-3"></i>
+                      Đã khóa định danh (Account, Slug, Title, Hardware).
+                    </span>
+                    <span class="text-slate-500">Mục đích: Chỉ sửa <strong>Mã Nguồn (Studio)</strong>, <strong>Input Datasource</strong> và <strong>Chia Sẻ</strong>.</span>
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button type="button" onclick="openNotebookShareModal()" class="px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 border border-purple-300 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs" title="Cấu hình quyền riêng tư và chia sẻ cộng tác viên">
+                  <i data-lucide="share-2" class="w-3.5 h-3.5 text-purple-600"></i>
+                  <span>Chia Sẻ Notebook</span>
+                </button>
+                <button type="button" onclick="exitNotebookEditMode()" class="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs" title="Hủy chỉnh sửa notebook này để soạn mới">
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                  <span>Thoát Chế Độ Sửa</span>
+                </button>
+              </div>
+            </div>
+
             <!-- Step 1: Chọn Nguồn Notebook (Local là mặc định hàng đầu) -->
             <div>
               <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
@@ -879,19 +912,29 @@
             <!-- Step 2: Tiêu đề & Slug -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                  <i data-lucide="file-text" class="w-3.5 h-3.5 text-purple-600"></i>
-                  <span>Tên Notebook (Title Kaggle)</span>
-                </label>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-semibold text-slate-700 flex items-center gap-1">
+                    <i data-lucide="file-text" class="w-3.5 h-3.5 text-purple-600"></i>
+                    <span>Tên Notebook (Title Kaggle)</span>
+                  </label>
+                  <span id="trainerTitleLockBadge" class="hidden text-[10px] text-amber-700 font-semibold flex items-center gap-0.5 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                    <i data-lucide="lock" class="w-2.5 h-2.5"></i> Đã khóa khi sửa
+                  </span>
+                </div>
                 <div class="relative">
                   <input type="text" id="trainerTitle" placeholder="Ví dụ: Lifemate Training V1" oninput="autoUpdateTrainerSlug(this.value)" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium transition-colors">
                 </div>
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                  <i data-lucide="hash" class="w-3.5 h-3.5 text-indigo-500"></i>
-                  <span>Slug Kaggle (viết liền gạch nối)</span>
-                </label>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-semibold text-slate-700 flex items-center gap-1">
+                    <i data-lucide="hash" class="w-3.5 h-3.5 text-indigo-500"></i>
+                    <span>Slug Kaggle (viết liền gạch nối)</span>
+                  </label>
+                  <span id="trainerSlugLockBadge" class="hidden text-[10px] text-amber-700 font-semibold flex items-center gap-0.5 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                    <i data-lucide="lock" class="w-2.5 h-2.5"></i> Cố định
+                  </span>
+                </div>
                 <div class="relative">
                   <input type="text" id="trainerSlug" placeholder="ví dụ: lifemate-training-v1" class="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-colors">
                 </div>
@@ -981,6 +1024,14 @@
                 <option value="">Đang tải danh sách tài khoản & quota...</option>
               </select>
 
+              <!-- Edit mode account lock notice -->
+              <div id="editModeAccountLockNotice" class="hidden mb-2.5 p-2.5 bg-amber-50/90 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-2 shadow-2xs">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="lock" class="w-3.5 h-3.5 text-amber-600 flex-shrink-0"></i>
+                  <span class="text-[11px]">Đã khóa tài khoản thực thi <strong id="editModeAccountName" class="font-mono text-purple-700">@...</strong> (Cố định theo notebook đang sửa).</span>
+                </div>
+              </div>
+
               <!-- Visual Cards Grid for Accounts -->
               <div id="trainerAccountsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-72 overflow-y-auto pr-1">
                 <div class="col-span-full py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
@@ -1002,11 +1053,25 @@
 
             <!-- Step 4: Cấu hình Phần cứng (GPU / TPU / CPU) -->
             <div class="pt-3 border-t border-slate-100">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 mb-2">
-                <span class="w-4 h-4 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold">3</span>
-                Phần Cứng & Môi Trường
-              </label>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <span class="w-4 h-4 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold">3</span>
+                  Phần Cứng & Môi Trường
+                </label>
+                <span id="trainerHardwareLockBadge" class="hidden text-[10px] text-amber-700 font-semibold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  <i data-lucide="lock" class="w-3 h-3"></i> Quick Save (Không chạy GPU)
+                </span>
+              </div>
+
+              <!-- Notice when editing: Quick Save only -->
+              <div id="editModeHardwareNotice" class="hidden mb-3 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2 shadow-2xs">
+                <i data-lucide="info" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+                <div class="text-[11px] leading-relaxed">
+                  <strong>Chế độ sửa notebook:</strong> Khi bạn bấm <strong>"Lưu Phiên Bản"</strong>, hệ thống sẽ thực hiện <strong>Quick Save</strong> để ghi nhận mã nguồn và input mới lên Kaggle mà <strong>không khởi động container GPU</strong>, hoàn toàn không tốn hạn ngạch 30h/tuần.
+                </div>
+              </div>
+
+              <div id="trainerHardwareGrid" class="grid grid-cols-2 gap-3 transition-opacity">
                 <label class="cursor-pointer">
                   <input type="radio" name="trainerHardware" value="NvidiaTeslaT4" checked class="peer sr-only">
                   <div class="p-3 text-center rounded-xl border border-slate-200 peer-checked:border-purple-600 peer-checked:bg-purple-50/70 peer-checked:ring-2 peer-checked:ring-purple-500/20 transition-all hover:bg-slate-50 shadow-2xs">
@@ -1115,10 +1180,10 @@
                     <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-500"></i>
                     <span>Đặt Lại / Nhập Mới</span>
                   </button>
-                  <button type="button" onclick="openShareDialogForCurrentNotebook()" class="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Mở trang chia sẻ notebook trên Kaggle">
-                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Mở Share trên Kaggle
+                  <button type="button" onclick="openNotebookShareModal()" class="px-3 py-2 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Cấu hình quyền riêng tư và chia sẻ cộng tác viên">
+                    <i data-lucide="share-2" class="w-3.5 h-3.5 text-purple-600"></i> Quản Lý Chia Sẻ
                   </button>
-                  <button type="button" id="btnSubmitSaveOnly" onclick="submitRunNotebook('save_only')" class="px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer" title="Lưu và commit phiên bản mới lên Kaggle (dùng CPU, không tốn quota GPU 30h/tuần)">
+                  <button type="button" id="btnSubmitSaveOnly" onclick="submitRunNotebook('save_only')" class="px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer" title="Chỉ lưu và commit phiên bản mới lên Kaggle (Quick Save, không chạy bất kỳ phần cứng nào, 0% GPU)">
                     <i data-lucide="save" class="w-4 h-4 text-indigo-600"></i>
                     <span id="textSubmitSaveOnly">💾 Lưu Phiên Bản (Không Chạy GPU)</span>
                   </button>
@@ -1489,6 +1554,100 @@
           <button onclick="closeDatasetShareModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer">Hủy</button>
           <button onclick="submitDatasetShare()" id="btnSubmitShare" class="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-1.5 cursor-pointer">
             <i data-lucide="check" class="w-3.5 h-3.5"></i> Cấp quyền tự động
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== MODAL: NOTEBOOK SHARING & PERMISSIONS ==================== -->
+    <div id="notebookShareModal" style="z-index: 76;" class="fixed inset-0 z-[76] hidden flex items-center justify-center bg-slate-900/50 backdrop-blur-[1px] p-4" data-modal-close="closeNotebookShareModal">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-5 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+              <i data-lucide="share-2" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-slate-900">Quản Lý Quyền & Chia Sẻ Notebook</h3>
+              <p class="text-[11px] text-slate-500">Cấu hình riêng tư & chia sẻ cộng tác viên giữa các tài khoản</p>
+            </div>
+          </div>
+          <button onclick="closeNotebookShareModal()" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="space-y-3.5">
+          <!-- Notebook Info Card -->
+          <div class="p-3 bg-purple-50/60 border border-purple-200/80 rounded-xl space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-purple-900" id="shareModalNotebookTitle">Tên Notebook</span>
+              <span id="shareModalPrivacyBadge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">Private</span>
+            </div>
+            <p class="text-xs font-mono text-purple-700" id="shareModalNotebookRef">owner/slug</p>
+          </div>
+
+          <!-- Section 1: Privacy Toggle -->
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <label class="block text-xs font-bold text-slate-800">1. Chế Độ Riêng Tư (Privacy)</label>
+            <div class="flex items-center gap-4 text-xs">
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" name="shareNotebookPrivacyRadio" id="sharePrivacyRadioPrivate" value="private" checked onchange="onNotebookSharePrivacyChange(true)" class="text-purple-600 focus:ring-purple-500">
+                <span class="font-semibold text-slate-700">🔒 Riêng tư (Private)</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" name="shareNotebookPrivacyRadio" id="sharePrivacyRadioPublic" value="public" onchange="onNotebookSharePrivacyChange(false)" class="text-purple-600 focus:ring-purple-500">
+                <span class="font-semibold text-emerald-700">🌐 Công khai (Public)</span>
+              </label>
+            </div>
+            <p class="text-[11px] text-slate-500">Khi để <strong>Riêng tư</strong>, chỉ tài khoản sở hữu và cộng tác viên được cấp quyền mới xem hoặc chạy được. Cài đặt này sẽ được áp dụng khi bấm Lưu.</p>
+          </div>
+
+          <!-- Section 2: Direct Share on Kaggle -->
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <label class="block text-xs font-bold text-slate-800">2. Cấp Quyền Trực Tiếp Trên Kaggle</label>
+            <p class="text-[11px] text-slate-500 leading-relaxed">
+              Mở trực tiếp giao diện Kaggle bằng trình duyệt Chrome đã lưu profile của chủ sở hữu để thêm tài khoản vào danh sách cộng tác viên (không cần đăng nhập lại).
+            </p>
+            <div class="flex items-center gap-2 pt-1 flex-wrap">
+              <button type="button" onclick="openShareDialogForCurrentNotebook()" class="px-3.5 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                <span id="btnTextOpenKaggleShare">Mở Share Trên Kaggle</span>
+              </button>
+              <button type="button" onclick="copyCurrentNotebookShareLink()" class="px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
+                <i data-lucide="copy" class="w-3.5 h-3.5 text-slate-500"></i>
+                <span>Copy Link</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Section 3: Auto-Share Linked Input Datasets -->
+          <div class="p-3 bg-indigo-50/50 border border-indigo-200 rounded-xl space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-bold text-indigo-900 flex items-center gap-1.5">
+                <i data-lucide="database" class="w-3.5 h-3.5 text-indigo-600"></i>
+                <span>3. Cấp Quyền Tự Động Toàn Bộ Dataset Đầu Vào</span>
+              </label>
+            </div>
+            <p class="text-[11px] text-slate-600 leading-relaxed">
+              Nếu notebook sử dụng các Dataset riêng tư, cộng tác viên cần có quyền truy cập Dataset để có thể chạy. Chọn các tài khoản muốn cấp quyền Reader/Writer ngay:
+            </p>
+            <div id="shareNotebookAccountsList" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
+              <!-- Dynamically populated checkboxes -->
+            </div>
+            <div class="pt-2 flex items-center justify-between gap-2 border-t border-indigo-100 flex-wrap">
+              <span id="shareNotebookDatasetsStatus" class="text-[11px] text-slate-500 truncate max-w-xs"></span>
+              <button type="button" id="btnShareNotebookDatasets" onclick="executeShareNotebookDatasets()" class="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-xs">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                <span>Cấp Quyền Datasets</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeNotebookShareModal()" class="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg cursor-pointer">
+            Đóng
           </button>
         </div>
       </div>
@@ -5773,6 +5932,45 @@
     }
 
     function resetTrainerForm(notify = true) {
+      if (isEditingExistingNotebook) {
+        isEditingExistingNotebook = false;
+        editingNotebookContext = null;
+        const banner = document.getElementById('trainerEditModeBanner');
+        if (banner) banner.classList.add('hidden');
+        const accSelect = document.getElementById('trainerTargetAccount');
+        if (accSelect) accSelect.disabled = false;
+        const accNotice = document.getElementById('editModeAccountLockNotice');
+        if (accNotice) accNotice.classList.add('hidden');
+        const accGrid = document.getElementById('trainerAccountsGrid');
+        if (accGrid) accGrid.classList.remove('opacity-75', 'pointer-events-none');
+        const slugInput = document.getElementById('trainerSlug');
+        if (slugInput) {
+          slugInput.readOnly = false;
+          slugInput.classList.remove('bg-slate-100', 'text-slate-600', 'cursor-not-allowed');
+        }
+        const titleInput = document.getElementById('trainerTitle');
+        if (titleInput) {
+          titleInput.readOnly = false;
+          titleInput.classList.remove('bg-slate-100', 'text-slate-600', 'cursor-not-allowed');
+        }
+        const slugLock = document.getElementById('trainerSlugLockBadge');
+        if (slugLock) slugLock.classList.add('hidden');
+        const titleLock = document.getElementById('trainerTitleLockBadge');
+        if (titleLock) titleLock.classList.add('hidden');
+        const hwNotice = document.getElementById('editModeHardwareNotice');
+        if (hwNotice) hwNotice.classList.add('hidden');
+        const hwLock = document.getElementById('trainerHardwareLockBadge');
+        if (hwLock) hwLock.classList.add('hidden');
+        const hwGrid = document.getElementById('trainerHardwareGrid');
+        if (hwGrid) hwGrid.classList.remove('opacity-60', 'pointer-events-none');
+        const btnSave = document.getElementById('btnSubmitSaveOnly');
+        const textSave = document.getElementById('textSubmitSaveOnly');
+        if (textSave) textSave.innerHTML = '💾 Lưu Phiên Bản (Không Chạy GPU)';
+        if (btnSave) {
+          btnSave.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-100');
+        }
+      }
+
       // 1. Reset source mode to local
       setTrainerSourceMode('local');
 
@@ -5850,6 +6048,230 @@
       lucide.createIcons();
     }
 
+    let isEditingExistingNotebook = false;
+    let editingNotebookContext = null;
+
+    function enterNotebookEditMode(account, ref, meta) {
+      isEditingExistingNotebook = true;
+      const cleanSlug = meta.slug || (ref.includes('/') ? ref.split('/')[1] : ref);
+      editingNotebookContext = {
+        account: account,
+        ref: ref,
+        slug: cleanSlug,
+        title: meta.title || '',
+        is_private: (meta.is_private !== false),
+        headVersion: meta.current_head_version || 1
+      };
+
+      // 1. Show Edit Mode Banner
+      const banner = document.getElementById('trainerEditModeBanner');
+      if (banner) banner.classList.remove('hidden');
+      const refBadge = document.getElementById('editModeRefBadge');
+      if (refBadge) refBadge.textContent = ref;
+      const vBadge = document.getElementById('editModeVersionBadge');
+      if (vBadge) vBadge.textContent = `v${meta.current_head_version || 1}`;
+
+      // 2. Lock Target Account to owner
+      selectTrainerTargetAccount(account);
+      const accSelect = document.getElementById('trainerTargetAccount');
+      if (accSelect) {
+        accSelect.value = account;
+        accSelect.disabled = true;
+      }
+      const accNotice = document.getElementById('editModeAccountLockNotice');
+      if (accNotice) accNotice.classList.remove('hidden');
+      const accName = document.getElementById('editModeAccountName');
+      if (accName) accName.textContent = `@${account}`;
+      const accGrid = document.getElementById('trainerAccountsGrid');
+      if (accGrid) accGrid.classList.add('opacity-75', 'pointer-events-none');
+
+      // 3. Lock Slug & Title (Purpose of edit is strictly code & input sources)
+      const slugInput = document.getElementById('trainerSlug');
+      if (slugInput) {
+        slugInput.value = cleanSlug;
+        slugInput.readOnly = true;
+        slugInput.classList.add('bg-slate-100', 'text-slate-600', 'cursor-not-allowed');
+      }
+      const titleInput = document.getElementById('trainerTitle');
+      if (titleInput) {
+        titleInput.value = meta.title || '';
+        titleInput.readOnly = true;
+        titleInput.classList.add('bg-slate-100', 'text-slate-600', 'cursor-not-allowed');
+      }
+      const slugLock = document.getElementById('trainerSlugLockBadge');
+      if (slugLock) slugLock.classList.remove('hidden');
+      const titleLock = document.getElementById('trainerTitleLockBadge');
+      if (titleLock) titleLock.classList.remove('hidden');
+
+      // 4. Lock Hardware & Display Quick Save Notice
+      const hwNotice = document.getElementById('editModeHardwareNotice');
+      if (hwNotice) hwNotice.classList.remove('hidden');
+      const hwLock = document.getElementById('trainerHardwareLockBadge');
+      if (hwLock) hwLock.classList.remove('hidden');
+      const hwGrid = document.getElementById('trainerHardwareGrid');
+      if (hwGrid) hwGrid.classList.add('opacity-60', 'pointer-events-none');
+
+      // 5. Update Action Buttons
+      const btnSave = document.getElementById('btnSubmitSaveOnly');
+      const textSave = document.getElementById('textSubmitSaveOnly');
+      if (textSave) textSave.innerHTML = '💾 Lưu Phiên Bản (Quick Save - Không Chạy)';
+      if (btnSave) {
+        btnSave.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-100');
+        btnSave.title = 'Lưu và ghi nhận phiên bản mới (Quick Save) lên Kaggle mà không chạy, không tốn GPU';
+      }
+
+      const summary = document.getElementById('runnerStatusSummary');
+      if (summary) {
+        summary.innerHTML = `✏️ Đang sửa <strong class="text-indigo-700">${ref}</strong> (Chỉ lưu code & input)`;
+      }
+
+      lucide.createIcons();
+    }
+
+    function exitNotebookEditMode(notify = true) {
+      resetTrainerForm(false);
+      if (notify) {
+        showToast('Đã thoát chế độ chỉnh sửa. Bạn có thể soạn notebook mới!', 'info');
+      }
+    }
+
+    function openNotebookShareModal() {
+      const targetAccount = document.getElementById('trainerTargetAccount')?.value || 'kitnehi1211';
+      const slug = document.getElementById('trainerSlug')?.value?.trim() || '';
+      const title = document.getElementById('trainerTitle')?.value?.trim() || 'Notebook';
+      const isPrivate = document.getElementById('trainerIsPrivate')?.checked !== false;
+      const ref = `${targetAccount}/${slug}`;
+
+      const modal = document.getElementById('notebookShareModal');
+      if (!modal) return;
+
+      const titleEl = document.getElementById('shareModalNotebookTitle');
+      if (titleEl) titleEl.textContent = title;
+      const refEl = document.getElementById('shareModalNotebookRef');
+      if (refEl) refEl.textContent = ref;
+
+      const privBadge = document.getElementById('shareModalPrivacyBadge');
+      if (privBadge) {
+        privBadge.textContent = isPrivate ? 'Riêng tư (Private)' : 'Công khai (Public)';
+        privBadge.className = isPrivate
+          ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200'
+          : 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+      }
+
+      const radPriv = document.getElementById('sharePrivacyRadioPrivate');
+      const radPub = document.getElementById('sharePrivacyRadioPublic');
+      if (radPriv) radPriv.checked = isPrivate;
+      if (radPub) radPub.checked = !isPrivate;
+
+      const btnOpenKaggle = document.getElementById('btnTextOpenKaggleShare');
+      if (btnOpenKaggle) btnOpenKaggle.textContent = `Mở Share Trên Kaggle (@${targetAccount})`;
+
+      // Populate pool accounts for dataset auto-sharing
+      const accountsList = document.getElementById('shareNotebookAccountsList');
+      if (accountsList) {
+        accountsList.innerHTML = '';
+        const allAccounts = [
+          'kitnehi1211', 'baovuong3009', 'justb2464', 'kittruong',
+          'lngchip', 'phatle54', 'thaivu1', 'truongkietphu', 'xyzabz'
+        ];
+        allAccounts.forEach(acc => {
+          if (acc === targetAccount) return;
+          const div = document.createElement('label');
+          div.className = 'flex items-center gap-1.5 p-1.5 rounded-lg bg-white border border-slate-200 hover:border-purple-300 text-xs text-slate-700 cursor-pointer transition-colors';
+          div.innerHTML = `
+            <input type="checkbox" name="shareNotebookCollabAccount" value="${acc}" checked class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+            <span class="font-medium truncate">@${acc}</span>
+          `;
+          accountsList.appendChild(div);
+        });
+      }
+
+      const statusEl = document.getElementById('shareNotebookDatasetsStatus');
+      if (statusEl) statusEl.textContent = '';
+
+      modal.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeNotebookShareModal() {
+      const modal = document.getElementById('notebookShareModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function onNotebookSharePrivacyChange(isPrivate) {
+      const chk = document.getElementById('trainerIsPrivate');
+      if (chk) chk.checked = isPrivate;
+
+      const privBadge = document.getElementById('shareModalPrivacyBadge');
+      if (privBadge) {
+        privBadge.textContent = isPrivate ? 'Riêng tư (Private)' : 'Công khai (Public)';
+        privBadge.className = isPrivate
+          ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200'
+          : 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200';
+      }
+      showToast(`Đã chuyển chế độ riêng tư: ${isPrivate ? 'Riêng tư (Private)' : 'Công khai (Public)'}. Bấm Lưu để cập nhật.`, 'info');
+    }
+
+    function copyCurrentNotebookShareLink() {
+      const targetAccount = document.getElementById('trainerTargetAccount')?.value || 'kitnehi1211';
+      const slug = document.getElementById('trainerSlug')?.value?.trim() || '';
+      const url = `https://www.kaggle.com/code/${targetAccount}/${slug}`;
+      navigator.clipboard.writeText(url).then(() => {
+        showToast(`📋 Đã copy link chia sẻ: ${url}`, 'success');
+      }).catch(err => {
+        showToast(`Không thể copy link: ${err}`, 'error');
+      });
+    }
+
+    async function executeShareNotebookDatasets() {
+      const targetAccount = document.getElementById('trainerTargetAccount')?.value || 'kitnehi1211';
+      const checkedBoxes = document.querySelectorAll('input[name="shareNotebookCollabAccount"]:checked');
+      const collabs = Array.from(checkedBoxes).map(cb => cb.value);
+
+      if (collabs.length === 0) {
+        showToast('Vui lòng chọn ít nhất 1 tài khoản để cấp quyền dataset!', 'warning');
+        return;
+      }
+
+      const datasetSources = selectedInputSources.filter(i => i.type === 'dataset').map(i => i.ref);
+      if (datasetSources.length === 0) {
+        showToast('Notebook này hiện không có Input Dataset nào cần cấp quyền.', 'info');
+        return;
+      }
+
+      const statusEl = document.getElementById('shareNotebookDatasetsStatus');
+      const btn = document.getElementById('btnShareNotebookDatasets');
+      if (btn) btn.disabled = true;
+      if (statusEl) statusEl.textContent = 'Đang tự động chia sẻ dataset qua Kaggle SDK...';
+
+      try {
+        const res = await fetch('/api/runner/share-notebook-datasets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            owner_account: targetAccount,
+            dataset_sources: datasetSources,
+            collaborators: collabs,
+            role: 'WRITER'
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`✅ ${data.message || 'Đã cấp quyền dataset cho các tài khoản thành công!'}`, 'success');
+          if (statusEl) statusEl.innerHTML = `<span class="text-emerald-600 font-semibold">Đã cấp quyền thành công cho ${collabs.length} tài khoản!</span>`;
+        } else {
+          showToast(`Lỗi: ${data.message}`, 'error');
+          if (statusEl) statusEl.innerHTML = `<span class="text-rose-600 font-semibold">${data.message}</span>`;
+        }
+      } catch (err) {
+        console.error('Error sharing notebook datasets:', err);
+        showToast('Lỗi khi gọi API cấp quyền dataset.', 'error');
+        if (statusEl) statusEl.innerHTML = `<span class="text-rose-600 font-semibold">${err.message}</span>`;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
     function quickTrainNotebook(account, ref) {
       quickEditNotebook(account, ref, null);
     }
@@ -5889,7 +6311,12 @@
     }
 
     async function onTrainerNotebookSelectChange(ref, explicitAccount, version = null) {
-      if (!ref) return;
+      if (!ref) {
+        if (isEditingExistingNotebook) {
+          exitNotebookEditMode(false);
+        }
+        return;
+      }
       const loadingEl = document.getElementById('trainerNotebookLoading');
       if (loadingEl) loadingEl.classList.remove('hidden');
 
@@ -5962,6 +6389,7 @@
 
         document.getElementById('runnerStatusSummary').innerHTML = `Đã nạp <span class="font-semibold text-purple-700">${data.title}</span> từ @${owner} (${Math.round((currentTrainerSourceCode.length || 0) / 1024)} KB)`;
         showToast(`Đã nạp thành công notebook ${data.title}!`, 'success');
+        enterNotebookEditMode(owner, data.ref || ref, data);
       } catch (err) {
         console.error('Error fetching notebook meta:', err);
         showToast('Lỗi khi tải thông tin notebook từ Kaggle.', 'error');
@@ -5971,6 +6399,7 @@
     }
 
     function autoUpdateTrainerSlug(val) {
+      if (isEditingExistingNotebook) return;
       if (!val) return;
       const slugInput = document.getElementById('trainerSlug');
       if (!slugInput) return;
@@ -6406,7 +6835,8 @@
           model_sources: modelSources,
           is_notebook: trainerIsNotebook,
           language: 'python',
-          backup_to_master: Boolean(document.getElementById('trainerBackupToMaster')?.checked)
+          backup_to_master: Boolean(document.getElementById('trainerBackupToMaster')?.checked),
+          save_only: (mode === 'save_only')
         };
 
         const res = await fetch('/api/runner/run', {
@@ -6431,11 +6861,38 @@
         }
 
         const notebookLink = data.url || (data.ref ? `https://www.kaggle.com/code/${data.ref}` : '');
-        if (mode === 'save_only') {
-          showToast(`💾 Đã lưu phiên bản mới lên Kaggle thành công cho @${targetAccount}! (Không trừ quota GPU)`, 'success');
-        } else {
-          showToast(`🚀 Đã gửi lệnh lưu & huấn luyện GPU thành công trên @${targetAccount}!`, 'success');
+
+        // If in save_only mode: Only save/commit notebook on Kaggle, do NOT execute or stream console
+        if (mode === 'save_only' || data.saved_only) {
+          const vNum = data.version_number || '';
+          showToast(`💾 Đã lưu phiên bản mới (v${vNum}) lên Kaggle thành công! (Quick Save - Không chạy và không tốn GPU)`, 'success');
+
+          if (studioTargetVersionInfo) {
+            studioTargetVersionInfo.loadedVersion = data.version_number;
+            studioTargetVersionInfo.currentHeadVersion = data.version_number;
+            updateStudioBadges();
+          }
+          const vBadge = document.getElementById('editModeVersionBadge');
+          if (vBadge && data.version_number) {
+            vBadge.textContent = `v${data.version_number}`;
+          }
+          const summary = document.getElementById('runnerStatusSummary');
+          if (summary) {
+            summary.innerHTML = `✅ Đã lưu phiên bản <strong class="text-indigo-700">v${vNum}</strong> lên Kaggle (Quick Save - 0% GPU)`;
+          }
+
+          if (notebookLink) {
+            try {
+              navigator.clipboard.writeText(notebookLink);
+              showToast(`📋 Đã tự động copy link notebook: ${notebookLink}`, 'info');
+            } catch (_) {}
+          }
+
+          loadData();
+          return;
         }
+
+        showToast(`🚀 Đã gửi lệnh lưu & huấn luyện GPU thành công trên @${targetAccount}!`, 'success');
         
         // Auto-copy notebook link for instant checking
         if (notebookLink) {
@@ -6472,7 +6929,11 @@
         }
         if (btnSave) {
           btnSave.disabled = false;
-          btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-indigo-600"></i><span>💾 Lưu Phiên Bản (Không Chạy GPU)</span>';
+          if (isEditingExistingNotebook) {
+            btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-indigo-600"></i><span id="textSubmitSaveOnly">💾 Lưu Phiên Bản (Quick Save - Không Chạy)</span>';
+          } else {
+            btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-indigo-600"></i><span id="textSubmitSaveOnly">💾 Lưu Phiên Bản (Không Chạy GPU)</span>';
+          }
         }
         lucide.createIcons();
       }
