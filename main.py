@@ -415,10 +415,15 @@ def get_runner_recommendations():
 def get_runner_notebook_meta(
     account: str = Query(...),
     ref: str = Query(...),
-    version: Optional[int] = Query(None, description="Số phiên bản cụ thể (mặc định lấy mới nhất)")
+    version: Optional[str] = Query(None, description="Số phiên bản cụ thể (mặc định lấy mới nhất)")
 ):
     """Fetch existing notebook source code and metadata to pre-populate training form."""
-    return monitor_service.get_notebook_source_and_meta(account, ref, version=version)
+    clean_version = None
+    if version is not None and str(version).strip():
+        v_str = str(version).strip().lstrip("vV")
+        if v_str.isdigit():
+            clean_version = int(v_str)
+    return monitor_service.get_notebook_source_and_meta(account, ref, version=clean_version)
 
 @app.get("/api/runner/local-notebooks")
 def get_local_notebooks():

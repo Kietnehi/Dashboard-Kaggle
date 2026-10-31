@@ -2364,80 +2364,106 @@ class KaggleMonitorService:
 
     def get_notebook_source_and_meta(self, account_username, kernel_ref, version=None):
         """Fetch full source code and metadata of an existing kernel for runner pre-fill."""
-        target_cred = self.get_credential_by_username(account_username)
-        if not target_cred:
-            target_cred = self.get_credential_by_username("kitnehi1211")
-        if not target_cred:
-            c_files = self.get_credential_files()
-            if c_files:
-                target_cred = self.get_credential_by_username(os.path.basename(c_files[0]))
-        if not target_cred:
-            return {"success": False, "message": f"Không tìm thấy credential cho {account_username}"}
+        account_username = (account_username or "").strip()
+        kernel_ref = (kernel_ref or "").strip()
 
         owner, slug = (
             kernel_ref.split("/", 1) if "/" in kernel_ref
             else (account_username, kernel_ref)
         )
+        owner = (owner or "").strip()
+        slug = (slug or "").strip()
 
-        with kaggle_api_lock:
-            api = KaggleApi()
-            _configure_kaggle_api(api, target_cred)
-            try:
-                with api.build_kaggle_client() as client:
-                    req_meta = ApiGetKernelRequest()
-                    req_meta.user_name = owner
-                    req_meta.kernel_slug = slug
-                    if version is not None:
-                        req_meta.version_label = f"v{version}" if str(version).isdigit() else str(version)
-                    res = client.kernels.kernels_api_client.get_kernel(req_meta)
-                    if not res:
-                        return {"success": False, "message": "Không tìm thấy notebook trên Kaggle"}
-                    
-                    meta = res.metadata.to_dict() if res.metadata else {}
-                    source = ""
-                    if hasattr(res, "blob") and res.blob:
-                        source = getattr(res.blob, "source", "") or ""
+        # Build prioritized list of candidate credentials to try:
+        # 1. Notebook owner (has ultimate owner privileges if in our account pool)
+        # 2. Specified account_username (in case it is collaborator or runner)
+        # 3. Master account kitnehi1211
+        # 4. Any other configured credentials in the pool
+        candidate_usernames = []
+        for cand in [owner, account_username, "kitnehi1211"]:
+            if cand and cand not in candidate_usernames:
+                candidate_usernames.append(cand)
 
-                    kernel_type = meta.get("kernelType", "notebook")
-                    machine_shape = meta.get("machineShape", "")
-                    if not machine_shape and meta.get("enableGpu"):
-                        machine_shape = "NvidiaTeslaT4"
-                    elif not machine_shape and meta.get("enableTpu"):
-                        machine_shape = "Tpu1VmV38"
+        for u in self.get_all_account_usernames():
+            if u and u not in candidate_usernames:
+                candidate_usernames.append(u)
 
-                    current_head_v = meta.get("currentVersionNumber", 1) or 1
-                    try:
-                        loaded_v = int(version) if version is not None else current_head_v
-                    except Exception:
-                        loaded_v = current_head_v
+        clean_version = None
+        if version is not None:
+            v_str = str(version).strip().lstrip("vV")
+            if v_str.isdigit():
+                clean_version = int(v_str)
 
-                    model_srcs = meta.get("modelDataSources", []) or meta.get("modelSources", []) or []
+        last_error = None
+        for cand_user in candidate_usernames:
+            target_cred = self.get_credential_by_username(cand_user)
+            if not target_cred:
+                continue
 
-                    return {
-                        "success": True,
-                        "ref": f"{owner}/{slug}",
-                        "owner": owner,
-                        "slug": slug,
-                        "title": meta.get("title", slug),
-                        "language": meta.get("language", "python"),
-                        "kernel_type": kernel_type,
-                        "is_notebook": (kernel_type == "notebook"),
-                        "is_private": meta.get("isPrivate", True),
-                        "enable_gpu": meta.get("enableGpu", False),
-                        "enable_tpu": meta.get("enableTpu", False),
-                        "enable_internet": meta.get("enableInternet", True),
-                        "machine_shape": machine_shape,
-                        "current_head_version": current_head_v,
-                        "loaded_version": loaded_v,
-                        "dataset_sources": meta.get("datasetDataSources", []) or [],
-                        "kernel_sources": meta.get("kernelDataSources", []) or [],
-                        "competition_sources": meta.get("competitionDataSources", []) or [],
-                        "model_sources": model_srcs,
-                        "source_code": source,
-                    }
-            except Exception as e:
-                logger.error("Error fetching kernel source and meta: %s", e)
-                return {"success": False, "message": str(e)}
+            with kaggle_api_lock:
+                api = KaggleApi()
+                _configure_kaggle_api(api, target_cred)
+                try:
+                    with api.build_kaggle_client() as client:
+                        req_meta = ApiGetKernelRequest()
+                        req_meta.user_name = owner
+                        req_meta.kernel_slug = slug
+                        if clean_version is not None:
+                            req_meta.version_label = f"v{clean_version}"
+                        res = client.kernels.kernels_api_client.get_kernel(req_meta)
+                        if not res:
+                            continue
+
+                        meta = res.metadata.to_dict() if res.metadata else {}
+                        source = ""
+                        if hasattr(res, "blob") and res.blob:
+                            source = getattr(res.blob, "source", "") or ""
+
+                        kernel_type = meta.get("kernelType", "notebook")
+                        machine_shape = meta.get("machineShape", "")
+                        if not machine_shape and meta.get("enableGpu"):
+                            machine_shape = "NvidiaTeslaT4"
+                        elif not machine_shape and meta.get("enableTpu"):
+                            machine_shape = "Tpu1VmV38"
+
+                        current_head_v = meta.get("currentVersionNumber", 1) or 1
+                        loaded_v = clean_version if clean_version is not None else current_head_v
+
+                        model_srcs = meta.get("modelDataSources", []) or meta.get("modelSources", []) or []
+
+                        return {
+                            "success": True,
+                            "ref": f"{owner}/{slug}",
+                            "owner": owner,
+                            "slug": slug,
+                            "title": meta.get("title", slug),
+                            "language": meta.get("language", "python"),
+                            "kernel_type": kernel_type,
+                            "is_notebook": (kernel_type == "notebook"),
+                            "is_private": meta.get("isPrivate", True),
+                            "enable_gpu": meta.get("enableGpu", False),
+                            "enable_tpu": meta.get("enableTpu", False),
+                            "enable_internet": meta.get("enableInternet", True),
+                            "machine_shape": machine_shape,
+                            "current_head_version": current_head_v,
+                            "loaded_version": loaded_v,
+                            "dataset_sources": meta.get("datasetDataSources", []) or [],
+                            "kernel_sources": meta.get("kernelDataSources", []) or [],
+                            "competition_sources": meta.get("competitionDataSources", []) or [],
+                            "model_sources": model_srcs,
+                            "source_code": source,
+                            "effective_account": cand_user
+                        }
+                except Exception as e:
+                    last_error = str(e)
+                    logger.warning("Attempt to fetch kernel %s/%s via @%s failed: %s", owner, slug, cand_user, e)
+                    continue
+
+        logger.error("All credentials failed to fetch kernel %s/%s. Last error: %s", owner, slug, last_error)
+        return {
+            "success": False,
+            "message": f"Không thể tải thông tin notebook '{owner}/{slug}' từ Kaggle: {last_error or 'Không tìm thấy hoặc không có quyền truy cập.'}"
+        }
 
     def push_and_run_kernel(
         self,

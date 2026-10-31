@@ -147,5 +147,69 @@ class TestLiveConsoleRunner(unittest.TestCase):
                 # Only datasets owned by credentials available (kitnehi1211) get shared
                 self.assertEqual(mock_share.call_count, 1)
 
+    def test_get_notebook_source_and_meta_credential_fallback(self):
+        # Test that when initial caller account fails (e.g. 403 Forbidden),
+        # get_notebook_source_and_meta falls back to notebook owner and succeeds
+        mock_kernel_res = MagicMock()
+        mock_kernel_res.metadata.title = "Fallback Success Notebook"
+        mock_kernel_res.metadata.kernelType = "notebook"
+        mock_kernel_res.metadata.to_dict.return_value = {
+            "title": "Fallback Success Notebook",
+            "kernelType": "notebook",
+            "currentVersionNumber": 3,
+            "datasetDataSources": ["kitnehi1211/dataset-a"]
+        }
+        mock_kernel_res.blob.source = "print('hello from owner')"
+
+        call_records = []
+        def mock_build_client_for_cred(api, cred):
+            call_records.append(cred.get("username"))
+            mock_client = MagicMock()
+            if cred.get("username") == "justb2464":
+                # Account without access raises 403 Forbidden
+                mock_client.kernels.kernels_api_client.get_kernel.side_effect = Exception("403 Client Error: Forbidden")
+            else:
+                # Owner kitnehi1211 succeeds
+                mock_client.kernels.kernels_api_client.get_kernel.return_value = mock_kernel_res
+            return mock_client
+
+        with patch("kaggle_service.KaggleApi") as mock_api_cls:
+            mock_api = MagicMock()
+            mock_api_cls.return_value = mock_api
+            mock_api.build_kaggle_client.return_value.__enter__.side_effect = lambda: mock_build_client_for_cred(mock_api, mock_api._test_cred)
+            
+            def fake_configure(api, cred):
+                api._test_cred = cred
+
+            with patch("kaggle_service._configure_kaggle_api", side_effect=fake_configure):
+                with patch.object(monitor_service, "get_credential_by_username", side_effect=lambda u: {"username": u, "key": "k"} if u in ["justb2464", "kitnehi1211"] else None):
+                    with patch.object(monitor_service, "get_all_account_usernames", return_value=["justb2464", "kitnehi1211"]):
+                        res = monitor_service.get_notebook_source_and_meta("justb2464", "kitnehi1211/my-cool-notebook")
+                        self.assertTrue(res.get("success"), f"Expected success but got: {res.get('message')}")
+                        self.assertEqual(res.get("title"), "Fallback Success Notebook")
+                        self.assertEqual(res.get("source_code"), "print('hello from owner')")
+                        self.assertEqual(res.get("effective_account"), "kitnehi1211")
+
+    def test_api_runner_notebook_meta_flexible_version(self):
+        from fastapi.testclient import TestClient
+        from main import app
+
+        client = TestClient(app)
+        with patch.object(monitor_service, "get_notebook_source_and_meta", return_value={"success": True, "title": "Test NB"}) as mock_get_meta:
+            # Test string version "v4"
+            r1 = client.get("/api/runner/notebook-meta?account=kitnehi1211&ref=kitnehi1211/my-nb&version=v4")
+            self.assertEqual(r1.status_code, 200)
+            mock_get_meta.assert_called_with("kitnehi1211", "kitnehi1211/my-nb", version=4)
+
+            # Test integer version 2
+            r2 = client.get("/api/runner/notebook-meta?account=kitnehi1211&ref=kitnehi1211/my-nb&version=2")
+            self.assertEqual(r2.status_code, 200)
+            mock_get_meta.assert_called_with("kitnehi1211", "kitnehi1211/my-nb", version=2)
+
+            # Test omitted version
+            r3 = client.get("/api/runner/notebook-meta?account=kitnehi1211&ref=kitnehi1211/my-nb")
+            self.assertEqual(r3.status_code, 200)
+            mock_get_meta.assert_called_with("kitnehi1211", "kitnehi1211/my-nb", version=None)
+
 if __name__ == "__main__":
     unittest.main()

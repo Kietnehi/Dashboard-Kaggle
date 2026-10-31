@@ -5745,8 +5745,8 @@
         return;
       }
 
-      // If current selected is not in displayList, select first item
-      if (!displayList.some(a => a.username === currentSelected) && displayList.length > 0) {
+      // If current selected is not in displayList, select first item (only if not editing an existing notebook)
+      if (!isEditingExistingNotebook && !displayList.some(a => a.username === currentSelected) && displayList.length > 0) {
         currentSelected = displayList[0].username;
         if (sel) sel.value = currentSelected;
       }
@@ -6055,6 +6055,12 @@
     let isEditingExistingNotebook = false;
     let editingNotebookContext = null;
 
+    function selectTrainerTargetAccount(username) {
+      if (typeof selectRunnerAccount === 'function') {
+        selectRunnerAccount(username);
+      }
+    }
+
     function enterNotebookEditMode(account, ref, meta) {
       isEditingExistingNotebook = true;
       const cleanSlug = meta.slug || (ref.includes('/') ? ref.split('/')[1] : ref);
@@ -6076,7 +6082,12 @@
       if (vBadge) vBadge.textContent = `v${meta.current_head_version || 1}`;
 
       // 2. Lock Target Account to owner
-      selectTrainerTargetAccount(account);
+      if (typeof setRunnerFilterMode === 'function') {
+        setRunnerFilterMode('all');
+      }
+      if (typeof selectRunnerAccount === 'function') {
+        selectRunnerAccount(account);
+      }
       const accSelect = document.getElementById('trainerTargetAccount');
       if (accSelect) {
         accSelect.value = account;
@@ -6284,7 +6295,13 @@
       switchTab('trainer');
       setTrainerSourceMode('cached');
       const sel = document.getElementById('trainerNotebookSelect');
-      if (sel) {
+      if (sel && ref) {
+        if (!Array.from(sel.options).some(o => o.value === ref)) {
+          const opt = document.createElement('option');
+          opt.value = ref;
+          opt.textContent = `[${account}] ${ref}`;
+          sel.appendChild(opt);
+        }
         sel.value = ref;
       }
       showToast(`Đang nạp mã nguồn ${ref.split('/')[1] || ref} vào Notebook Studio...`, 'info');
@@ -6324,19 +6341,28 @@
       const loadingEl = document.getElementById('trainerNotebookLoading');
       if (loadingEl) loadingEl.classList.remove('hidden');
 
-      const owner = explicitAccount || (ref.includes('/') ? ref.split('/')[0] : 'kitnehi1211');
+      // Resolve owner
+      const matchedKernel = (kernelsData || []).find(k => k.ref === ref);
+      const owner = explicitAccount || (matchedKernel && matchedKernel.account) || (ref.includes('/') ? ref.split('/')[0] : 'kitnehi1211');
 
       try {
         let metaUrl = `/api/runner/notebook-meta?account=${encodeURIComponent(owner)}&ref=${encodeURIComponent(ref)}`;
-        if (version) metaUrl += `&version=${encodeURIComponent(version)}`;
+        if (version !== null && version !== undefined && String(version).trim()) {
+          metaUrl += `&version=${encodeURIComponent(version)}`;
+        }
         const res = await fetch(metaUrl);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.message || errBody.detail || `HTTP ${res.status}`);
+        }
         const data = await res.json();
 
         if (!data.success) {
-          showToast(data.message || 'Không thể lấy thông tin notebook.', 'error');
+          showToast(data.message || 'Không thể lấy thông tin notebook từ Kaggle.', 'error');
           return;
         }
+
+        const effectiveOwner = data.owner || owner;
 
         // Pre-fill form fields
         document.getElementById('trainerTitle').value = data.title || '';
@@ -6348,7 +6374,7 @@
           loadedVersion: data.loaded_version || (version ? parseInt(version) : 1),
           currentHeadVersion: data.current_head_version || 1,
           ref: data.ref || ref,
-          owner: owner,
+          owner: effectiveOwner,
           slug: data.slug || ''
         };
         updateStudioBadges();
@@ -6391,12 +6417,12 @@
         }
         renderSelectedInputs();
 
-        document.getElementById('runnerStatusSummary').innerHTML = `Đã nạp <span class="font-semibold text-purple-700">${data.title}</span> từ @${owner} (${Math.round((currentTrainerSourceCode.length || 0) / 1024)} KB)`;
+        document.getElementById('runnerStatusSummary').innerHTML = `Đã nạp <span class="font-semibold text-purple-700">${data.title}</span> từ @${effectiveOwner} (${Math.round((currentTrainerSourceCode.length || 0) / 1024)} KB)`;
         showToast(`Đã nạp thành công notebook ${data.title}!`, 'success');
-        enterNotebookEditMode(owner, data.ref || ref, data);
+        enterNotebookEditMode(effectiveOwner, data.ref || ref, data);
       } catch (err) {
         console.error('Error fetching notebook meta:', err);
-        showToast('Lỗi khi tải thông tin notebook từ Kaggle.', 'error');
+        showToast(err.message || 'Lỗi khi tải thông tin notebook từ Kaggle.', 'error');
       } finally {
         if (loadingEl) loadingEl.classList.add('hidden');
       }
@@ -6768,9 +6794,13 @@
         if (rawTa) onTrainerRawSourceInput(rawTa.value);
       }
 
-      const targetAccount = document.getElementById('trainerTargetAccount').value;
+      const targetAccount = (isEditingExistingNotebook && editingNotebookContext && editingNotebookContext.account)
+        ? editingNotebookContext.account
+        : (document.getElementById('trainerTargetAccount')?.value || 'kitnehi1211');
       const title = document.getElementById('trainerTitle').value.trim();
-      const slug = document.getElementById('trainerSlug').value.trim();
+      const slug = (isEditingExistingNotebook && editingNotebookContext && editingNotebookContext.slug)
+        ? editingNotebookContext.slug
+        : document.getElementById('trainerSlug').value.trim();
 
       if (!targetAccount) {
         showToast('Vui lòng chọn tài khoản thực thi!', 'error');
