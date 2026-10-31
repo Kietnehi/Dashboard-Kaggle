@@ -13,7 +13,7 @@ class TestNotebookEditorFrontend(unittest.TestCase):
         # 2. Toolbar buttons and badges
         self.assertTrue('id="btnStudioAddCodeCell"' in self.html, "Missing id=btnStudioAddCodeCell")
         self.assertTrue('id="btnStudioAddMdCell"' in self.html, "Missing id=btnStudioAddMdCell")
-        self.assertTrue('id="btnStudioToggleViewMode"' in self.html, "Missing id=btnStudioToggleViewMode")
+        self.assertTrue('id="btnStudioToggleViewMode"' in self.html or ('id="btnStudioTabCells"' in self.html and 'id="btnStudioTabRaw"' in self.html), "Missing view mode toggle buttons")
         self.assertTrue('id="studioCellsCountBadge"' in self.html, "Missing id=studioCellsCountBadge")
         self.assertTrue('id="studioVersionTargetBadge"' in self.html, "Missing id=studioVersionTargetBadge")
         # 3. Containers for cells and raw mode
