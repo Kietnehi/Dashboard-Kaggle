@@ -1744,15 +1744,20 @@ class KaggleMonitorService:
             return {"success": False, "message": str(e)}
 
     def get_kernel_details(self, account_username, kernel_ref, version=None):
-        target_cred = self.get_credential_by_username(account_username)
-        if not target_cred:
-            return {"success": False, "message": "Không tìm thấy credential cho tài khoản này"}
-
         if "/" in kernel_ref:
             owner, slug = kernel_ref.split("/", 1)
         else:
-            owner = account_username
+            owner = account_username or "kitnehi1211"
             slug = kernel_ref
+
+        target_cred = (
+            self.get_credential_by_username(account_username)
+            or self.get_credential_by_username(owner)
+            or self.get_credential_by_username("kitnehi1211")
+            or (self.credentials[0] if self.credentials else None)
+        )
+        if not target_cred:
+            return {"success": False, "message": "Không tìm thấy credential cho tài khoản này"}
 
         v_label = f"v{version}" if version is not None and str(version).isdigit() else (str(version) if version is not None else None)
 
@@ -1778,12 +1783,21 @@ class KaggleMonitorService:
                     req_meta = ApiGetKernelRequest()
                     req_meta.user_name = owner
                     req_meta.kernel_slug = slug
+                    latest_cur_version = 1
+                    latest_res = None
+                    try:
+                        latest_res = client.kernels.kernels_api_client.get_kernel(req_meta)
+                        if latest_res and latest_res.metadata:
+                            latest_cur_version = getattr(latest_res.metadata, "current_version_number", 1) or 1
+                    except Exception as e:
+                        logger.warning("Could not get latest kernel metadata: %s", e)
+
                     if v_label:
                         req_meta.version_label = v_label
                     meta = {}
                     blob_source = ""
                     try:
-                        meta_res = client.kernels.kernels_api_client.get_kernel(req_meta)
+                        meta_res = client.kernels.kernels_api_client.get_kernel(req_meta) if v_label else latest_res
                         if meta_res:
                             if meta_res.metadata:
                                 meta = meta_res.metadata.to_dict()
@@ -1939,16 +1953,17 @@ class KaggleMonitorService:
                         )
 
                 # Versions generator
-                cur_version = meta.get("currentVersionNumber", 1) or 1
+                total_versions = latest_cur_version if (latest_cur_version and latest_cur_version > 0) else (meta.get("currentVersionNumber", 1) or 1)
+                cur_version = total_versions
                 try:
                     selected_version = int(version) if version is not None else cur_version
                 except Exception:
                     selected_version = cur_version
 
                 versions_list = []
-                for v in range(cur_version, 0, -1):
+                for v in range(total_versions, 0, -1):
                     v_label = f"Version {v}"
-                    if v == cur_version:
+                    if v == total_versions:
                         if status_str in ["RUNNING", "RUNNING_INTERACTIVE", "QUEUED"]:
                             v_label += " (Đang chạy - Mới nhất)"
                         else:
@@ -1956,7 +1971,7 @@ class KaggleMonitorService:
                     versions_list.append({
                         "version": v,
                         "label": v_label,
-                        "is_latest": (v == cur_version),
+                        "is_latest": (v == total_versions),
                         "is_selected": (v == selected_version),
                         "url": f"https://www.kaggle.com/code/{owner}/{slug}?version={v}"
                     })
@@ -2026,10 +2041,12 @@ class KaggleMonitorService:
                     "status": status_str,
                     "failure_message": failure_msg,
                     "current_version": cur_version,
+                    "total_versions": total_versions,
                     "selected_version": selected_version,
                     "selected_url": f"https://www.kaggle.com/code/{owner}/{slug}?version={selected_version}",
                     "is_selected_latest": (selected_version == cur_version),
                     "versions_list": versions_list,
+                    "files": out_files,
                     "hardware": {
                         "gpu": bool(meta.get("enableGpu", False)),
                         "tpu": bool(meta.get("enableTpu", False)),

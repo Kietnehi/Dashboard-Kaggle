@@ -383,11 +383,11 @@ def check_kernel_status(account: str = Query(...), ref: str = Query(...)):
 
 @app.get("/api/kernel/details")
 def get_kernel_details(
-    account: str = Query(...), 
     ref: str = Query(...),
+    account: Optional[str] = Query("", description="Tài khoản sở hữu hoặc để trống"), 
     version: Optional[int] = Query(None, description="Số version cụ thể muốn xem")
 ):
-    res = monitor_service.get_kernel_details(account, ref, version=version)
+    res = monitor_service.get_kernel_details(account or "", ref, version=version)
     return res
 
 @app.get("/api/kernel/live-output")

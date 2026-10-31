@@ -2229,6 +2229,124 @@
 
   </main>
 
+  <!-- ==================== MODAL: PIN INPUT VERSION (KIỂM TRA & GHIM PHIÊN BẢN INPUT) ==================== -->
+  <div id="pinVersionModal" style="z-index: 85;" class="fixed inset-0 z-[85] hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-2 sm:p-4 overflow-y-auto" data-modal-close="closePinVersionModal">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Modal Header -->
+      <div class="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50">
+        <div class="flex items-center gap-3 overflow-hidden">
+          <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 shadow-md">
+            <i data-lucide="pin" class="w-5 h-5"></i>
+          </div>
+          <div class="truncate">
+            <div class="flex items-center gap-2">
+              <h3 id="pinModalNotebookTitle" class="text-sm sm:text-base font-bold text-slate-900 truncate">Chọn & Ghim Phiên Bản Input</h3>
+              <span id="pinModalCurrentBadge" class="text-[11px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300">Đang ghim: v4</span>
+            </div>
+            <p id="pinModalNotebookRef" class="text-xs text-slate-600 font-mono truncate">owner/slug</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <a id="pinModalKaggleLink" href="#" target="_blank" class="px-2.5 py-1.5 text-xs font-semibold text-blue-600 bg-white border border-blue-200 hover:bg-blue-50 rounded-lg flex items-center gap-1 shadow-xs cursor-pointer" title="Mở trên Kaggle">
+            <span>Kaggle ↗</span>
+          </a>
+          <button onclick="closePinVersionModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body: Split view (Left: Versions List, Right: Selected Version Details & Output Files) -->
+      <div class="p-4 sm:p-5 overflow-y-auto flex-1 flex flex-col lg:flex-row gap-5">
+        
+        <!-- Left Column: Version Selector -->
+        <div class="lg:w-5/12 flex flex-col space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="layers" class="w-3.5 h-3.5 text-amber-600"></i>
+              <span>Danh Sách Phiên Bản</span>
+            </label>
+            <span id="pinModalTotalVersionsText" class="text-xs font-semibold text-slate-500">Đang tải...</span>
+          </div>
+
+          <!-- Unpin / Latest Option Card -->
+          <div onclick="selectPinVersion(null)" id="pinOptLatest" class="p-3 rounded-xl border border-purple-300 bg-purple-50/80 hover:bg-purple-100 cursor-pointer transition-all flex items-center justify-between shadow-xs">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">⚡</div>
+              <div>
+                <p class="text-xs font-bold text-purple-950">Luôn Lấy Phiên Bản Mới Nhất</p>
+                <p class="text-[11px] text-purple-700">Tự động nhận output của version mới nhất</p>
+              </div>
+            </div>
+            <span id="pinCheckLatest" class="text-purple-700 font-bold text-sm">✓</span>
+          </div>
+
+          <!-- Versions Scroll List -->
+          <div id="pinModalVersionsList" class="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+            <div class="text-center py-8 text-slate-400 text-xs">
+              <i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto mb-2 text-amber-600"></i>
+              Đang tải danh sách phiên bản từ Kaggle...
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Version Preview & Output Files -->
+        <div class="lg:w-7/12 flex flex-col space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+            <div>
+              <h4 id="pinPreviewVersionTitle" class="text-sm font-bold text-slate-900">Chi tiết Version</h4>
+              <p id="pinPreviewVersionMeta" class="text-[11px] text-slate-500">Chọn một phiên bản bên trái để kiểm tra tệp kết quả</p>
+            </div>
+            <span id="pinPreviewStatusBadge"></span>
+          </div>
+
+          <!-- Output summary alert -->
+          <div id="pinPreviewOutputAlert" class="p-3 rounded-lg text-xs">
+            <!-- Alert message about output files -->
+          </div>
+
+          <!-- Output Files List -->
+          <div class="flex-1 flex flex-col min-h-[160px]">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <i data-lucide="folder-check" class="w-3.5 h-3.5 text-blue-600"></i>
+                <span>Tệp Kết Quả (Output Files)</span>
+              </span>
+              <span id="pinPreviewFilesCountBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700">0 tệp</span>
+            </div>
+            <div id="pinPreviewFilesList" class="flex-1 max-h-[220px] overflow-y-auto bg-white rounded-lg border border-slate-200 p-2 space-y-1 text-xs">
+              <!-- Files list rendered here -->
+            </div>
+          </div>
+
+          <!-- Warning note -->
+          <div class="p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
+            <i data-lucide="info" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+            <span><strong>Mẹo quan trọng:</strong> Nếu notebook nguồn có lưu trọng số model (weights), bạn nên ghim chặt vào đúng version đó để notebook của bạn không bị mất liên kết file khi notebook nguồn được lưu mới!</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3 flex-wrap">
+        <button type="button" onclick="closePinVersionModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded-xl cursor-pointer">
+          Đóng
+        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="applyPinVersion(null)" id="btnApplyUnpin" class="px-3.5 py-2 text-xs font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 rounded-xl cursor-pointer border border-purple-300">
+            ⚡ Luôn Lấy Mới Nhất
+          </button>
+          <button type="button" onclick="applyPinVersionCurrentSelection()" id="btnApplyPinVersion" class="px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-xl shadow-md cursor-pointer flex items-center gap-1.5">
+            <i data-lucide="pin" class="w-4 h-4"></i>
+            <span id="btnApplyPinVersionText">📌 Ghim Phiên Bản Này</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ==================== MODAL: NOTEBOOK INSPECTOR (INPUT, OUTPUT, VERSION & CODE) ==================== -->
   <div id="inspectorModal" style="z-index: 70;" class="fixed inset-0 z-[70] hidden flex items-center justify-center bg-slate-900/50 backdrop-blur-[1px] p-2 sm:p-4" data-modal-close="closeInspectorModal">
     <div class="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -2257,6 +2375,11 @@
               <option value="">Đang tải...</option>
             </select>
           </div>
+
+          <button id="btnInspectorPinToTrainer" type="button" onclick="pinCurrentInspectorVersionToTrainer()" class="px-2.5 py-1.5 text-amber-800 bg-amber-50 border border-amber-300 hover:bg-amber-100 rounded-lg text-xs flex items-center gap-1.5 font-bold shadow-xs cursor-pointer" title="Ghim phiên bản này làm Input Data Source trong Trainer Hub">
+            <i data-lucide="pin" class="w-3.5 h-3.5 text-amber-600"></i>
+            <span id="btnInspectorPinToTrainerLabel">📌 Ghim Input Trainer</span>
+          </button>
 
           <button id="btnInspectorEditVersion" onclick="editNotebookFromInspector()" class="px-2.5 py-1.5 text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 rounded-lg text-xs flex items-center gap-1.5 font-semibold shadow-sm cursor-pointer" title="Chỉnh sửa mã nguồn và cấu hình notebook này trên Notebook Studio">
             <i data-lucide="edit-3" class="w-3.5 h-3.5 text-purple-600"></i>
@@ -3508,6 +3631,9 @@
       const verSelect = document.getElementById('inspectorVersionSelect');
       if (verSelect) verSelect.innerHTML = `<option value="">Đang tải phiên bản...</option>`;
       
+      const pinBtnLabel = document.getElementById('btnInspectorPinToTrainerLabel');
+      if (pinBtnLabel) pinBtnLabel.innerText = version ? `📌 Ghim v${version} Làm Input` : '📌 Ghim Input Trainer';
+      
       document.getElementById('inspectorModal').classList.remove('hidden');
       switchInspectorTab('output');
       lucide.createIcons();
@@ -3566,6 +3692,12 @@
           } else {
             verSelect.innerHTML = `<option value="${data.current_version || 1}">Version ${data.current_version || 1} (Mới nhất)</option>`;
           }
+        }
+
+        const curSelectedVer = data.selected_version || data.current_version || 1;
+        const currentPinBtnLabel = document.getElementById('btnInspectorPinToTrainerLabel');
+        if (currentPinBtnLabel) {
+          currentPinBtnLabel.innerText = `📌 Ghim v${curSelectedVer} Làm Input`;
         }
 
         // Status badge
@@ -4617,28 +4749,41 @@
     }
 
     // ==================== WORKFLOW: USE NOTEBOOK OUTPUT AS INPUT OR CREATE DATASET ====================
-    function useCurrentKernelOutputAsInput() {
+    function useCurrentKernelOutputAsInput(forcePin = false) {
       if (!currentInspectedKernel) {
         showToast('Chưa chọn notebook nào.', 'error');
         return;
       }
       const { ref } = currentInspectedKernel;
       const title = (currentInspectorData && currentInspectorData.title) || ref;
+      const ver = currentInspectedKernel.version || (currentInspectorData && currentInspectorData.selected_version);
+      const isLatest = currentInspectorData ? currentInspectorData.is_selected_latest : false;
+
+      let targetRef = ref;
+      if (forcePin && ver) {
+        targetRef = `${ref}/${ver}`;
+      } else if (ver && !isLatest) {
+        targetRef = `${ref}/${ver}`;
+      }
 
       closeInspectorModal();
       switchTab('trainer');
 
       // Add as kernel source (mounts /kaggle/input/<slug>)
-      addInputSource('kernel', ref, title);
+      addInputSource('kernel', targetRef, title);
 
       setTimeout(() => {
         const el = document.getElementById('selectedInputsContainer') || document.getElementById('selectedInputsList');
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.classList.add('ring-2', 'ring-purple-400', 'transition-all');
-          setTimeout(() => el.classList.remove('ring-2', 'ring-purple-400'), 2500);
+          el.classList.add('ring-2', 'ring-amber-400', 'transition-all');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400'), 2500);
         }
       }, 250);
+    }
+
+    function pinCurrentInspectorVersionToTrainer() {
+      useCurrentKernelOutputAsInput(true);
     }
 
     function openCreateDatasetFromOutputModal() {
@@ -7667,8 +7812,18 @@
       const finalRef = parsed ? parsed.ref : ref;
       const finalTitle = parsed ? parsed.title : (title || ref);
 
-      if (selectedInputSources.some(i => i.ref === finalRef)) {
-        showToast(`Đã có ${finalRef} trong danh sách input.`, 'info');
+      // Check if this source or a different version of it already exists
+      const baseFinalRef = finalRef.split('/').slice(0, 2).join('/');
+      const existingIdx = selectedInputSources.findIndex(i => {
+        const b = i.ref.split('/').slice(0, 2).join('/');
+        return b.toLowerCase() === baseFinalRef.toLowerCase() && i.type === finalType;
+      });
+
+      if (existingIdx !== -1) {
+        selectedInputSources[existingIdx].ref = finalRef;
+        selectedInputSources[existingIdx].title = finalTitle;
+        renderSelectedInputs();
+        showToast(`Đã cập nhật input: ${finalRef}`, 'success');
       } else {
         selectedInputSources.push({ type: finalType, ref: finalRef, title: finalTitle });
         renderSelectedInputs();
@@ -7745,12 +7900,12 @@
             versionPinBadge = `
               <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300" title="Đã ghim cố định Version ${parts[2]} (An toàn: Không bao giờ bị ảnh hưởng nếu notebook này có Quick Save rỗng sau này)">
                 <span>📌 v${parts[2]}</span>
-                <button type="button" onclick="promptChangeInputVersion('${i.ref}')" class="hover:text-rose-600 ml-0.5" title="Đổi hoặc bỏ ghim version">✏️</button>
+                <button type="button" onclick="openPinVersionModal('${i.ref}')" class="hover:text-rose-600 ml-0.5 cursor-pointer" title="Xem danh sách version và đổi/bỏ ghim">✏️</button>
               </span>
             `;
           } else {
             versionPinBadge = `
-              <button type="button" onclick="promptChangeInputVersion('${i.ref}')" class="text-[10px] text-purple-700 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-1.5 py-0.5 rounded font-semibold cursor-pointer border border-purple-200" title="Hiện đang lấy bản Mới nhất. Bấm để Ghim một phiên bản cụ thể (Pin Version) tránh bị rỗng output">
+              <button type="button" onclick="openPinVersionModal('${i.ref}')" class="text-[10px] text-purple-700 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-1.5 py-0.5 rounded font-semibold cursor-pointer border border-purple-200" title="Hiện đang lấy bản Mới nhất. Bấm để xem tất cả version & ghim (Pin Version)">
                 ⚡ Mới nhất (Ghim?)
               </button>
             `;
@@ -7773,30 +7928,336 @@
     }
 
     function promptChangeInputVersion(currentRef) {
-      const parts = currentRef.split('/');
-      const baseRef = (parts.length >= 2) ? `${parts[0]}/${parts[1]}` : currentRef;
-      const currentVer = (parts.length === 3) ? parts[2] : '';
+      openPinVersionModal(currentRef);
+    }
+
+    // ==================== WORKFLOW: PIN INPUT VERSION MODAL ====================
+    let pinModalContext = {
+      rawRef: '',
+      baseRef: '',
+      currentPinnedVer: null,
+      selectedVer: null,
+      versionsList: [],
+      versionDetailsCache: {},
+      isLoading: false
+    };
+
+    async function openPinVersionModal(inputRef) {
+      if (!inputRef) return;
+      const parts = inputRef.split('/');
+      const baseRef = (parts.length >= 2) ? `${parts[0]}/${parts[1]}` : inputRef;
+      const currentPinnedVer = (parts.length === 3 && /^\d+$/.test(parts[2])) ? parseInt(parts[2]) : null;
+
+      pinModalContext = {
+        rawRef: inputRef,
+        baseRef: baseRef,
+        currentPinnedVer: currentPinnedVer,
+        selectedVer: currentPinnedVer,
+        versionsList: [],
+        versionDetailsCache: {},
+        isLoading: true
+      };
+
+      // Modal elements
+      document.getElementById('pinModalNotebookRef').innerText = baseRef;
+      document.getElementById('pinModalNotebookTitle').innerText = baseRef;
+      document.getElementById('pinModalKaggleLink').href = `https://www.kaggle.com/code/${baseRef}`;
       
-      const promptText = `Ghim phiên bản cụ thể cho: ${baseRef}\n\nNhập số Version (ví dụ: 4) để ghim chặt vào output của Version đó.\n(Để trống nếu muốn luôn lấy bản Mới nhất):`;
-      const input = prompt(promptText, currentVer);
-      if (input === null) return; // User cancelled
+      const badgeEl = document.getElementById('pinModalCurrentBadge');
+      if (badgeEl) {
+        if (currentPinnedVer) {
+          badgeEl.className = 'text-[11px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300';
+          badgeEl.innerText = `Đang ghim: Version ${currentPinnedVer}`;
+        } else {
+          badgeEl.className = 'text-[11px] px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-900 border border-purple-300';
+          badgeEl.innerText = 'Luôn lấy Mới Nhất';
+        }
+      }
+
+      document.getElementById('pinModalTotalVersionsText').innerText = 'Đang tải...';
+      document.getElementById('pinModalVersionsList').innerHTML = `
+        <div class="text-center py-8 text-slate-400 text-xs">
+          <i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto mb-2 text-amber-600"></i>
+          Đang tải danh sách phiên bản từ Kaggle...
+        </div>
+      `;
+      document.getElementById('pinPreviewVersionTitle').innerText = 'Đang tải chi tiết...';
+      document.getElementById('pinPreviewVersionMeta').innerText = '';
+      document.getElementById('pinPreviewStatusBadge').innerHTML = '';
+      document.getElementById('pinPreviewOutputAlert').innerHTML = '';
+      document.getElementById('pinPreviewFilesList').innerHTML = '<p class="text-slate-400 p-2">Đang tải tệp kết quả...</p>';
+      document.getElementById('pinPreviewFilesCountBadge').innerText = '0 tệp';
+
+      document.getElementById('pinVersionModal').classList.remove('hidden');
+      lucide.createIcons();
+
+      // Fetch base details to get all versions
+      try {
+        const url = `/api/kernel/details?ref=${encodeURIComponent(baseRef)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.success) {
+          document.getElementById('pinModalVersionsList').innerHTML = `
+            <div class="p-3 bg-rose-50 text-rose-700 rounded-lg text-xs border border-rose-200">
+              Lỗi tải phiên bản: ${data.message || 'Không tìm thấy notebook'}
+            </div>
+          `;
+          document.getElementById('pinModalTotalVersionsText').innerText = 'Lỗi';
+          return;
+        }
+
+        pinModalContext.notebookTitle = data.title || baseRef;
+        document.getElementById('pinModalNotebookTitle').innerText = data.title || baseRef;
+
+        const vList = data.versions_list || [];
+        pinModalContext.versionsList = vList;
+        const totalV = data.total_versions || vList.length;
+        document.getElementById('pinModalTotalVersionsText').innerText = `${totalV} phiên bản`;
+
+        // Cache the latest version response
+        if (data.current_version) {
+          pinModalContext.versionDetailsCache[data.current_version] = data;
+        }
+
+        renderPinModalVersionsList();
+
+        // If user already pinned a version, preview that version; otherwise preview latest
+        const initialVerToSelect = currentPinnedVer || data.current_version || (vList[0] ? vList[0].version : null);
+        selectPinVersion(initialVerToSelect);
+
+      } catch (err) {
+        document.getElementById('pinModalVersionsList').innerHTML = `
+          <div class="p-3 bg-rose-50 text-rose-700 rounded-lg text-xs border border-rose-200">
+            Lỗi kết nối: ${err.message}
+          </div>
+        `;
+      }
+    }
+
+    function renderPinModalVersionsList() {
+      const listEl = document.getElementById('pinModalVersionsList');
+      if (!listEl) return;
+
+      const { versionsList, currentPinnedVer, selectedVer } = pinModalContext;
+
+      // Update Latest card state
+      const optLatest = document.getElementById('pinOptLatest');
+      const checkLatest = document.getElementById('pinCheckLatest');
+      if (optLatest && checkLatest) {
+        if (selectedVer === null) {
+          optLatest.className = 'p-3 rounded-xl border-2 border-purple-500 bg-purple-100/90 cursor-pointer transition-all flex items-center justify-between shadow-xs ring-2 ring-purple-300';
+          checkLatest.classList.remove('hidden');
+        } else {
+          optLatest.className = 'p-3 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100/80 cursor-pointer transition-all flex items-center justify-between shadow-xs';
+          checkLatest.classList.add('hidden');
+        }
+      }
+
+      if (versionsList.length === 0) {
+        listEl.innerHTML = '<p class="text-xs text-slate-400 p-3 italic text-center">Không tìm thấy phiên bản nào.</p>';
+        return;
+      }
+
+      listEl.innerHTML = versionsList.map(v => {
+        const isSelected = (v.version === selectedVer);
+        const isCurrentPinned = (v.version === currentPinnedVer);
+        const isLatest = v.is_latest;
+
+        let borderBg = 'border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50/40';
+        let checkMark = '';
+        if (isSelected) {
+          borderBg = 'border-2 border-amber-500 bg-amber-50/80 shadow-xs ring-2 ring-amber-200';
+          checkMark = '<span class="text-amber-700 font-bold text-sm">✓</span>';
+        }
+
+        let badges = '';
+        if (isLatest) {
+          badges += '<span class="px-1.5 py-0.5 text-[9px] bg-blue-100 text-blue-700 font-bold rounded">Mới nhất</span>';
+        }
+        if (isCurrentPinned) {
+          badges += '<span class="px-1.5 py-0.5 text-[9px] bg-amber-100 text-amber-900 font-bold rounded border border-amber-300">Đang ghim 📌</span>';
+        }
+
+        return `
+          <div onclick="selectPinVersion(${v.version})" class="p-2.5 rounded-xl border ${borderBg} cursor-pointer transition-all flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg ${isSelected ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-700'} flex items-center justify-center font-bold text-xs flex-shrink-0">
+                v${v.version}
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xs font-bold text-slate-900">Version ${v.version}</span>
+                  ${badges}
+                </div>
+                <p class="text-[10px] text-slate-500">Bấm để kiểm tra tệp output</p>
+              </div>
+            </div>
+            <div>
+              ${checkMark}
+            </div>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    async function selectPinVersion(versionNum) {
+      pinModalContext.selectedVer = versionNum;
+      renderPinModalVersionsList();
+
+      const btnApply = document.getElementById('btnApplyPinVersion');
+      const btnApplyText = document.getElementById('btnApplyPinVersionText');
+      if (versionNum === null) {
+        if (btnApply) btnApply.classList.add('hidden');
+        renderLatestPreviewDetails();
+        return;
+      }
+
+      if (btnApply) btnApply.classList.remove('hidden');
+      if (btnApplyText) btnApplyText.innerText = `📌 Ghim Version ${versionNum}`;
+
+      await loadPinModalVersionDetails(versionNum);
+    }
+
+    function renderLatestPreviewDetails() {
+      document.getElementById('pinPreviewVersionTitle').innerText = 'Chế độ: Luôn lấy phiên bản Mới nhất';
+      document.getElementById('pinPreviewVersionMeta').innerText = 'Kaggle sẽ tự động liên kết output của version mới nhất vừa chạy xong.';
+      document.getElementById('pinPreviewStatusBadge').innerHTML = '<span class="px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-800 rounded-full">⚡ Auto Latest</span>';
       
-      const cleanVer = input.trim().replace(/^v/i, '');
-      let newRef = baseRef;
-      if (cleanVer && /^\d+$/.test(cleanVer)) {
-        newRef = `${baseRef}/${cleanVer}`;
-        showToast(`📌 Đã ghim ${baseRef} vào Version ${cleanVer}!`, 'success');
+      document.getElementById('pinPreviewOutputAlert').innerHTML = `
+        <div class="p-3 bg-purple-50 border border-purple-200 rounded-lg text-purple-900 flex items-start gap-2">
+          <i data-lucide="zap" class="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5"></i>
+          <div>
+            <strong>Luôn nhận kết quả mới nhất:</strong>
+            <p class="mt-0.5 text-[11px] text-purple-700">Khi notebook nguồn chạy tạo ra phiên bản mới, notebook của bạn sẽ tự động đọc output của phiên bản mới đó mà không cần đổi cấu hình.</p>
+          </div>
+        </div>
+      `;
+      document.getElementById('pinPreviewFilesCountBadge').innerText = 'Tự động';
+      document.getElementById('pinPreviewFilesList').innerHTML = `
+        <div class="p-3 text-center text-slate-500 text-xs italic">
+          Các tệp output sẽ tự động cập nhật theo Version mới nhất trên Kaggle.
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    async function loadPinModalVersionDetails(versionNum) {
+      const { baseRef, versionDetailsCache } = pinModalContext;
+
+      document.getElementById('pinPreviewVersionTitle').innerText = `Chi tiết Version ${versionNum}`;
+      document.getElementById('pinPreviewVersionMeta').innerText = 'Đang tải tệp kết quả từ Kaggle API...';
+      document.getElementById('pinPreviewStatusBadge').innerHTML = '<span class="text-xs text-slate-400">Đang tải...</span>';
+      document.getElementById('pinPreviewFilesList').innerHTML = '<p class="text-slate-400 p-2">Đang tải tệp...</p>';
+
+      let data = versionDetailsCache[versionNum];
+      if (!data) {
+        try {
+          const res = await fetch(`/api/kernel/details?ref=${encodeURIComponent(baseRef)}&version=${versionNum}`);
+          data = await res.json();
+          if (data.success) {
+            versionDetailsCache[versionNum] = data;
+          }
+        } catch (e) {
+          document.getElementById('pinPreviewOutputAlert').innerHTML = `
+            <div class="p-2.5 bg-rose-50 text-rose-700 rounded-lg text-xs border border-rose-200">
+              Lỗi tải tệp: ${e.message}
+            </div>
+          `;
+          return;
+        }
+      }
+
+      if (!data || !data.success) {
+        document.getElementById('pinPreviewOutputAlert').innerHTML = `
+          <div class="p-2.5 bg-rose-50 text-rose-700 rounded-lg text-xs border border-rose-200">
+            Không thể lấy chi tiết version: ${data ? data.message : 'Lỗi'}
+          </div>
+        `;
+        return;
+      }
+
+      // Render status & metadata
+      document.getElementById('pinPreviewVersionTitle').innerText = `Chi tiết Version ${versionNum}`;
+      document.getElementById('pinPreviewVersionMeta').innerText = `Kaggle URL: https://www.kaggle.com/code/${baseRef}?version=${versionNum}`;
+      document.getElementById('pinPreviewStatusBadge').innerHTML = renderStatusBadge(data.status, data.failure_message);
+
+      const files = data.files || (data.output && data.output.files) || [];
+      document.getElementById('pinPreviewFilesCountBadge').innerText = `${files.length} tệp`;
+
+      if (files.length > 0) {
+        document.getElementById('pinPreviewOutputAlert').innerHTML = `
+          <div class="p-3 bg-emerald-50 border border-emerald-300 rounded-lg text-emerald-950 flex items-start gap-2">
+            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5"></i>
+            <div>
+              <strong>✅ An toàn tuyệt đối: Có ${files.length} tệp kết quả!</strong>
+              <p class="mt-0.5 text-[11px] text-emerald-800">Phiên bản này lưu đầy đủ output (weights/checkpoints/data). Ghim chặt vào version này giúp notebook huấn luyện của bạn không bao giờ bị mất model!</p>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('pinPreviewFilesList').innerHTML = files.map(f => {
+          return `
+            <div class="flex items-center justify-between p-1.5 bg-slate-50 hover:bg-slate-100 rounded border border-slate-100 transition-colors">
+              <div class="flex items-center gap-1.5 truncate max-w-[80%]">
+                <i data-lucide="file" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+                <span class="font-mono text-[11px] text-slate-800 truncate" title="${f.file_name}">${f.file_name}</span>
+              </div>
+              <span class="text-[10px] text-slate-500 font-semibold flex-shrink-0">${f.size || ''}</span>
+            </div>
+          `;
+        }).join('');
       } else {
-        showToast(`⚡ Đã đặt ${baseRef} về chế độ Luôn lấy bản mới nhất!`, 'info');
+        document.getElementById('pinPreviewOutputAlert').innerHTML = `
+          <div class="p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-950 flex items-start gap-2">
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+            <div>
+              <strong>⚠️ CẢNH BÁO: Phiên bản này không có tệp kết quả (Output rỗng)!</strong>
+              <p class="mt-0.5 text-[11px] text-amber-800">Đây là bản Quick Save hoặc bản chỉ đẩy code lên Kaggle (0 MB output). Nếu bạn ghim phiên bản này, notebook huấn luyện sẽ KHÔNG tìm thấy tệp model weights!</p>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('pinPreviewFilesList').innerHTML = `
+          <div class="text-center py-6 text-slate-400 italic text-xs">
+            Không tìm thấy tệp kết quả nào trong Version ${versionNum}.
+          </div>
+        `;
+      }
+      lucide.createIcons();
+    }
+
+    function applyPinVersionCurrentSelection() {
+      const { selectedVer } = pinModalContext;
+      applyPinVersion(selectedVer);
+    }
+
+    function applyPinVersion(versionNum) {
+      const { rawRef, baseRef } = pinModalContext;
+      let newRef = baseRef;
+
+      if (versionNum !== null && versionNum !== undefined) {
+        newRef = `${baseRef}/${versionNum}`;
+        showToast(`📌 Đã ghim thành công ${baseRef} vào Version ${versionNum}!`, 'success');
+      } else {
+        showToast(`⚡ Đã đặt ${baseRef} về chế độ Luôn lấy phiên bản mới nhất!`, 'info');
       }
 
       // Update in selectedInputSources
-      const idx = selectedInputSources.findIndex(s => s.ref === currentRef);
+      const idx = selectedInputSources.findIndex(s => s.ref === rawRef || s.ref === baseRef || s.ref.startsWith(baseRef + '/'));
       if (idx !== -1) {
         selectedInputSources[idx].ref = newRef;
         selectedInputSources[idx].title = newRef;
         renderSelectedInputs();
       }
+
+      closePinVersionModal();
+    }
+
+    function closePinVersionModal() {
+      const modal = document.getElementById('pinVersionModal');
+      if (modal) modal.classList.add('hidden');
     }
 
     // Submit Notebook Run or Save Version
