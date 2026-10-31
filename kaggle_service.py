@@ -2335,25 +2335,40 @@ class KaggleMonitorService:
         return {"success": True, "message": "Đã xóa lượt chạy khỏi Sổ cái huấn luyện!"}
 
     def clean_input_source(self, item):
-        """Parse and normalize input URLs or ref strings into (type, clean_ref)."""
-        s = str(item or "").strip()
-        s = re.sub(r'[\?\#].*$', '', s).strip('/')
+        """Parse and normalize input URLs or ref strings into (type, clean_ref). Supports pinned version: owner/slug/version."""
+        raw_s = str(item or "").strip()
+        url_ver_match = re.search(r'[?&]version=v?(\d+)', raw_s, re.IGNORECASE)
+        url_version = url_ver_match.group(1) if url_ver_match else None
+        s = re.sub(r'[\?\#].*$', '', raw_s).strip('/')
+
+        # Kernel URLs: kaggle.com/code/<owner>/<slug>[/<version>]
+        m_c = re.search(r'kaggle\.com/code/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)(?:/v?(\d+))?', s)
+        if m_c:
+            owner, slug, path_ver = m_c.group(1), m_c.group(2), m_c.group(3)
+            ver = path_ver or url_version
+            if ver:
+                return 'kernel', f"{owner}/{slug}/{ver}"
+            return 'kernel', f"{owner}/{slug}"
+
         # Model URLs with 4 parts (optionally followed by /version_number)
         m_m4 = re.search(r'kaggle\.com/models/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)(?:/\d+)?', s)
         if m_m4:
             return 'model', f"{m_m4.group(1)}/{m_m4.group(2)}/{m_m4.group(3)}/{m_m4.group(4)}"
-        # Kernel URLs
-        m_c = re.search(r'kaggle\.com/code/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
-        if m_c:
-            return 'kernel', f"{m_c.group(1)}/{m_c.group(2)}"
-        # Dataset URLs
-        m_d = re.search(r'kaggle\.com/datasets/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)', s)
+
+        # Dataset URLs: kaggle.com/datasets/<owner>/<slug>[/<version>]
+        m_d = re.search(r'kaggle\.com/datasets/([a-zA-Z0-9_\-]+)/([a-zA-Z0-9_\-]+)(?:/v?(\d+))?', s)
         if m_d:
-            return 'dataset', f"{m_d.group(1)}/{m_d.group(2)}"
+            owner, slug, path_ver = m_d.group(1), m_d.group(2), m_d.group(3)
+            ver = path_ver or url_version
+            if ver:
+                return 'dataset', f"{owner}/{slug}/{ver}"
+            return 'dataset', f"{owner}/{slug}"
+
         # Competition URLs
         m_comp = re.search(r'kaggle\.com/competitions/([a-zA-Z0-9_\-]+)', s)
         if m_comp:
             return 'competition', m_comp.group(1)
+
         # Plain string model ref (4 parts: owner/model/framework/variation)
         if not s.startswith("http") and "/" in s:
             parts = [p.strip() for p in s.split("/") if p.strip()]
@@ -2361,6 +2376,9 @@ class KaggleMonitorService:
                 return 'model', "/".join(parts)
             elif len(parts) == 5 and parts[4].isdigit():
                 return 'model', "/".join(parts[:4])
+            elif len(parts) == 3 and (parts[2].isdigit() or (parts[2].lower().startswith('v') and parts[2][1:].isdigit())):
+                clean_ver = parts[2].lstrip('vV')
+                return None, f"{parts[0]}/{parts[1]}/{clean_ver}"
         return None, s
 
     def get_notebook_source_and_meta(self, account_username, kernel_ref, version=None):
@@ -3425,6 +3443,157 @@ class KaggleMonitorService:
             }
         finally:
             shutil.rmtree(staging_dir, ignore_errors=True)
+
+    def create_dataset_from_kernel_output(
+        self,
+        kernel_ref: str,
+        dataset_title: str,
+        account: str = None,
+        dataset_slug: str = None,
+        target_account: str = "kitnehi1211",
+        version = None,
+        is_private: bool = True,
+        selected_files: list = None,
+        description: str = "",
+        subtitle: str = "",
+        license_name: str = "CC0-1.0",
+        auto_share_all: bool = True,
+        include_log: bool = False
+    ):
+        """Download output files of a completed notebook and publish them as a Kaggle dataset."""
+        if not kernel_ref or not kernel_ref.strip():
+            return {"success": False, "message": "Vui lòng cung cấp tham chiếu notebook (kernel_ref)."}
+
+        clean_ref = kernel_ref.strip()
+        if "/" in clean_ref:
+            owner, slug = clean_ref.split("/", 1)
+        else:
+            owner = account or target_account
+            slug = clean_ref
+
+        # Find credential to read notebook output
+        read_account = owner if self.get_credential_by_username(owner) else (account or target_account)
+        read_cred = self.get_credential_by_username(read_account)
+        if not read_cred:
+            read_cred = self.get_credential_by_username(target_account)
+        if not read_cred:
+            return {"success": False, "message": f"Không tìm thấy credential phù hợp để đọc output từ notebook '{clean_ref}'."}
+
+        v_label = f"v{version}" if version is not None and str(version).isdigit() else (str(version) if version is not None else None)
+
+        staging_dir = tempfile.mkdtemp(prefix="kaggle_output_ds_")
+        try:
+            api = KaggleApi()
+            _configure_kaggle_api(api, read_cred)
+
+            downloaded_files = []
+            selected_set = set(selected_files) if selected_files else None
+            output_files_found = 0
+
+            # Fetch file listing from session output
+            with kaggle_api_lock:
+                with api.build_kaggle_client() as client:
+                    req_out = ApiListKernelSessionOutputRequest()
+                    req_out.user_name = owner
+                    req_out.kernel_slug = slug
+                    if v_label:
+                        req_out.version_label = v_label
+
+                    token = None
+                    raw_log = ""
+                    while True:
+                        if token:
+                            req_out.page_token = token
+                        try:
+                            out_res = client.kernels.kernels_api_client.list_kernel_session_output(req_out)
+                        except Exception as e:
+                            logger.error("Failed to list kernel session output for %s: %s", clean_ref, e)
+                            return {"success": False, "message": f"Không thể lấy danh sách output từ Kaggle: {str(e)}"}
+
+                        if not out_res:
+                            break
+
+                        if not raw_log and getattr(out_res, "log", None):
+                            raw_log = out_res.log
+
+                        files = getattr(out_res, "files", None) or []
+                        for f in files:
+                            fname = getattr(f, "file_name", None) or getattr(f, "name", None)
+                            furl = getattr(f, "url", None)
+                            if not fname or not furl:
+                                continue
+
+                            output_files_found += 1
+
+                            # Check file filter if selected_files specified
+                            if selected_set:
+                                base_name = os.path.basename(fname)
+                                if fname not in selected_set and base_name not in selected_set:
+                                    continue
+
+                            dest_path = os.path.join(staging_dir, fname)
+                            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+                            try:
+                                with requests.get(furl, stream=True, timeout=180) as r:
+                                    r.raise_for_status()
+                                    with open(dest_path, "wb") as out_f:
+                                        for chunk in r.iter_content(chunk_size=1024 * 1024):
+                                            out_f.write(chunk)
+                                downloaded_files.append(fname)
+                            except Exception as err:
+                                logger.warning("Failed to download output file %s: %s", fname, err)
+
+                        token = getattr(out_res, "next_page_token", None)
+                        if not token:
+                            break
+
+                    # If include_log or user selected log, write console log
+                    if raw_log and (include_log or (selected_set and any(sf.endswith(".log") for sf in selected_set))):
+                        log_fname = f"{slug}.log"
+                        if not selected_set or log_fname in selected_set or any(sf.endswith(".log") for sf in selected_set):
+                            log_dest = os.path.join(staging_dir, log_fname)
+                            with open(log_dest, "w", encoding="utf-8") as lf:
+                                lf.write(raw_log)
+                            downloaded_files.append(log_fname)
+
+            if not downloaded_files:
+                if output_files_found == 0:
+                    return {
+                        "success": False,
+                        "message": f"Notebook '{clean_ref}' chưa có tệp output nào trên Kaggle (hoặc phiên chạy chưa hoàn tất)."
+                    }
+                return {
+                    "success": False,
+                    "message": f"Không có tệp nào trong danh sách được chọn để tải về từ notebook '{clean_ref}'."
+                }
+
+            # Call existing create_dataset method with local_folder_path
+            default_desc = description or f"Dataset được trích xuất tự động từ output của notebook {clean_ref} trên Kaggle."
+            res = self.create_dataset(
+                title=dataset_title,
+                slug=dataset_slug,
+                is_private=is_private,
+                local_folder_path=staging_dir,
+                description=default_desc,
+                subtitle=subtitle,
+                license_name=license_name,
+                target_account=target_account,
+                auto_share_all=auto_share_all
+            )
+
+            if res.get("success"):
+                res["downloaded_files_count"] = len(downloaded_files)
+                res["downloaded_files"] = downloaded_files
+                res["source_kernel"] = clean_ref
+
+            return res
+        except Exception as e:
+            logger.error("Exception in create_dataset_from_kernel_output: %s", e)
+            return {"success": False, "message": f"Lỗi xử lý tạo dataset từ output: {str(e)}"}
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+
 
 
     def refresh_quotas_live(self):

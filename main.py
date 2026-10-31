@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Union
 import uvicorn
 
 from kaggle_service import monitor_service, BASE_DIR, parse_datetime_to_timestamp
@@ -205,6 +205,21 @@ class DatasetCreateJsonRequest(BaseModel):
 class DatasetPrivacyRequest(BaseModel):
     ref: str
     is_private: bool
+
+class KernelOutputToDatasetRequest(BaseModel):
+    account: Optional[str] = ""
+    kernel_ref: str
+    version: Optional[Union[int, str]] = None
+    dataset_title: str
+    dataset_slug: Optional[str] = ""
+    target_account: Optional[str] = "kitnehi1211"
+    is_private: Optional[bool] = True
+    selected_files: Optional[List[str]] = None
+    description: Optional[str] = ""
+    license_name: Optional[str] = "CC0-1.0"
+    subtitle: Optional[str] = ""
+    auto_share_all: Optional[bool] = True
+    include_log: Optional[bool] = False
 
 def periodic_running_scanner():
     while True:
@@ -714,6 +729,25 @@ def set_dataset_privacy_endpoint(req: DatasetPrivacyRequest):
     return monitor_service.update_dataset_privacy(
         dataset_ref=req.ref,
         is_private=req.is_private
+    )
+
+@app.post("/api/kernels/create-dataset-from-output")
+def create_dataset_from_kernel_output_endpoint(req: KernelOutputToDatasetRequest):
+    """Tạo Kaggle Dataset mới trực tiếp từ các tệp đầu ra (output) của một Notebook."""
+    return monitor_service.create_dataset_from_kernel_output(
+        kernel_ref=req.kernel_ref,
+        dataset_title=req.dataset_title,
+        account=req.account,
+        dataset_slug=req.dataset_slug,
+        target_account=req.target_account or "kitnehi1211",
+        version=req.version,
+        is_private=req.is_private if req.is_private is not None else True,
+        selected_files=req.selected_files,
+        description=req.description or "",
+        subtitle=req.subtitle or "",
+        license_name=req.license_name or "CC0-1.0",
+        auto_share_all=req.auto_share_all if req.auto_share_all is not None else True,
+        include_log=bool(req.include_log)
     )
 
 @app.get("/api/competitions")

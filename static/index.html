@@ -1067,11 +1067,14 @@
                 </span>
               </div>
 
-              <!-- Notice when editing: Draft Save vs Run GPU -->
-              <div id="editModeHardwareNotice" class="hidden mb-3 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2 shadow-2xs">
-                <i data-lucide="file-edit" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+              <!-- Notice when editing: Draft Save vs Quick Save vs Run GPU -->
+              <div id="editModeHardwareNotice" class="hidden mb-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 flex items-start gap-2 shadow-2xs">
+                <i data-lucide="info" class="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5"></i>
                 <div class="text-[11px] leading-relaxed">
-                  <strong>Chế độ sửa notebook:</strong> Bấm <strong>"📝 Lưu Bản Nháp"</strong> để lưu tạm thời code & input an toàn trên Dashboard mà <strong>tuyệt đối không tạo version mới trên Kaggle</strong>. Khi bạn đã hoàn thành việc chỉnh sửa, bấm <strong>"🚀 Lưu & Chạy GPU"</strong> để kích hoạt phiên chạy trên Kaggle.
+                  <strong>Chế độ sửa notebook có 3 lựa chọn:</strong><br>
+                  • <strong>"📝 Lưu Bản Nháp"</strong>: Lưu tạm code an toàn trên Dashboard (0% GPU, <strong>không tạo version mới</strong> trên Kaggle).<br>
+                  • <strong>"💾 Quick Save"</strong>: Đẩy code mới lên web Kaggle (0% GPU, <strong>tạo version mới</strong> trên Kaggle nhưng không có output).<br>
+                  • <strong>"🚀 Lưu & Chạy GPU"</strong>: Đẩy code lên Kaggle và kích hoạt GPU chạy để sinh file output đầy đủ.
                 </div>
               </div>
 
@@ -1198,6 +1201,10 @@
                   <button type="button" id="btnDiscardDraft" onclick="discardCurrentDraft()" class="hidden px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl flex items-center gap-1 transition-colors cursor-pointer" title="Xóa bỏ bản nháp và nạp lại code gốc từ Kaggle">
                     <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-500"></i>
                     <span>Hủy Nháp</span>
+                  </button>
+                  <button type="button" id="btnSubmitSaveOnly" onclick="submitRunNotebook('save_only')" class="px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer" title="Đẩy code lên Kaggle (Quick Save - 0% GPU), tạo version mới trên Kaggle mà không chạy code">
+                    <i data-lucide="save" class="w-4 h-4 text-indigo-600"></i>
+                    <span id="textSubmitSaveOnly">💾 Quick Save (Kaggle - 0% GPU)</span>
                   </button>
                   <button type="button" id="btnSubmitRun" onclick="submitRunNotebook('gpu')" class="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 rounded-xl flex items-center gap-2 transition-all shadow-md hover:shadow-purple-500/30 disabled:opacity-50 cursor-pointer" title="Lưu mã nguồn và bắt đầu phiên chạy huấn luyện ngay trên máy chủ Kaggle (GPU)">
                     <i data-lucide="play" class="w-4 h-4 fill-current"></i>
@@ -1931,6 +1938,157 @@
       </div>
     </div>
 
+    <!-- ==================== MODAL: CREATE DATASET FROM NOTEBOOK OUTPUT ==================== -->
+    <div id="createDatasetFromOutputModal" style="z-index: 85;" class="fixed inset-0 z-[85] hidden flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] p-4 overflow-y-auto" data-modal-close="closeCreateDatasetFromOutputModal">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 space-y-4 my-8 animate-in fade-in zoom-in-95 duration-150">
+        
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center shadow-md shadow-cyan-500/20">
+              <i data-lucide="package" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                Tạo Dataset từ Output Notebook
+              </h3>
+              <p id="dsFromOutputSubtext" class="text-xs text-slate-500 truncate max-w-md">Trích xuất tệp kết quả trực tiếp từ notebook lên Kaggle Dataset</p>
+            </div>
+          </div>
+          <button onclick="closeCreateDatasetFromOutputModal()" class="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-lg hover:bg-slate-100 transition-colors">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Form Body -->
+        <form id="createDatasetFromOutputForm" onsubmit="handleCreateDatasetFromOutputSubmit(event)" class="space-y-4">
+          
+          <!-- Source Notebook Indicator -->
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="book-open" class="w-4 h-4 text-purple-600"></i>
+              <span class="text-xs text-slate-600 font-medium">Notebook Nguồn:</span>
+              <span id="dsFromOutputKernelRef" class="text-xs font-mono font-bold text-slate-800"></span>
+            </div>
+            <span id="dsFromOutputVersionBadge" class="text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md"></span>
+          </div>
+
+          <!-- 1. Dataset Title -->
+          <div>
+            <label class="block text-xs font-bold text-slate-800 mb-1">
+              Tên Dataset (Title) <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="dsFromOutputTitle" 
+              required 
+              minlength="6" 
+              maxlength="50" 
+              placeholder="ví dụ: Training Weights & Submission" 
+              class="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-cyan-500 focus:bg-white transition-all font-medium"
+              oninput="updateDsFromOutputSlugPreview(this.value)"
+            >
+          </div>
+
+          <!-- 2. Dataset Slug Preview & Target Account -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-800 mb-1">
+                Tài khoản sở hữu (Owner)
+              </label>
+              <select 
+                id="dsFromOutputAccount" 
+                class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-cyan-500 font-medium"
+                onchange="updateDsFromOutputSlugPreview()"
+              >
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-800 mb-1">
+                Kaggle Slug (URL)
+              </label>
+              <div class="flex items-center px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-mono text-slate-700 overflow-hidden">
+                <span id="dsFromOutputSlugPreview" class="truncate">owner/slug</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. File Selection List -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <i data-lucide="files" class="w-3.5 h-3.5 text-cyan-600"></i> Chọn các tệp output đưa vào Dataset:
+              </label>
+              <div class="flex items-center gap-2 text-[11px]">
+                <button type="button" onclick="selectAllDsFromOutputFiles(true)" class="text-cyan-600 hover:underline font-medium cursor-pointer">Chọn tất cả</button>
+                <span class="text-slate-300">|</span>
+                <button type="button" onclick="selectAllDsFromOutputFiles(false)" class="text-slate-500 hover:underline font-medium cursor-pointer">Bỏ chọn hết</button>
+              </div>
+            </div>
+            <div id="dsFromOutputFilesContainer" class="border border-slate-200 rounded-xl divide-y divide-slate-100 max-h-48 overflow-y-auto bg-slate-50/50 p-1">
+              <p class="p-3 text-xs text-slate-400 text-center">Đang tải danh sách file...</p>
+            </div>
+          </div>
+
+          <!-- 4. Include Log Checkbox -->
+          <div class="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+            <input type="checkbox" id="dsFromOutputIncludeLog" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 cursor-pointer">
+            <label for="dsFromOutputIncludeLog" class="text-xs text-slate-700 cursor-pointer select-none font-medium flex items-center gap-1.5">
+              <i data-lucide="terminal" class="w-3.5 h-3.5 text-slate-500"></i> Kèm theo cả tệp log console phiên chạy (<span class="font-mono text-[11px]">kernel.log</span>)
+            </label>
+          </div>
+
+          <!-- 5. Options: Privacy & Auto-share -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2.5">
+              <input type="checkbox" id="dsFromOutputIsPrivate" checked class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 cursor-pointer">
+              <label for="dsFromOutputIsPrivate" class="text-xs text-slate-800 font-semibold cursor-pointer select-none">
+                Private (Riêng tư - Khuyên dùng)
+              </label>
+            </div>
+            <div class="p-3 bg-blue-50/60 border border-blue-200 rounded-xl flex items-center gap-2.5">
+              <input type="checkbox" id="dsFromOutputAutoShare" checked class="rounded border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+              <label for="dsFromOutputAutoShare" class="text-xs text-blue-900 font-medium cursor-pointer select-none">
+                Tự động cấp quyền 9 accounts
+              </label>
+            </div>
+          </div>
+
+          <!-- Progress / Loading Indicator -->
+          <div id="dsFromOutputProgress" class="hidden p-3.5 bg-cyan-50 border border-cyan-200 rounded-xl space-y-2">
+            <div class="flex items-center justify-between text-xs font-semibold text-cyan-900">
+              <span id="dsFromOutputProgressText" class="flex items-center gap-2">
+                <i data-lucide="loader-2" class="w-4 h-4 animate-spin-custom text-cyan-600"></i> Đang tải output từ Kaggle CDN và đóng gói Dataset...
+              </span>
+            </div>
+            <div class="w-full bg-cyan-200 rounded-full h-1.5 overflow-hidden">
+              <div class="bg-cyan-600 h-full w-2/3 animate-pulse"></div>
+            </div>
+          </div>
+
+          <!-- Footer Buttons -->
+          <div class="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+            <button 
+              type="button" 
+              onclick="closeCreateDatasetFromOutputModal()" 
+              class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button 
+              type="submit" 
+              id="btnSubmitDsFromOutput" 
+              class="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 active:from-cyan-800 active:to-blue-800 rounded-xl shadow-md shadow-cyan-500/25 flex items-center gap-2 cursor-pointer transition-all"
+            >
+              <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+              <span id="btnSubmitDsFromOutputText">Tạo Dataset Ngay</span>
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
   </main>
 
   <!-- ==================== MODAL: NOTEBOOK INSPECTOR (INPUT, OUTPUT, VERSION & CODE) ==================== -->
@@ -2084,7 +2242,20 @@
 
         <!-- SUB-TAB 3: OUTPUT FILES -->
         <div id="insp-view-files" class="hidden space-y-3">
-          <p class="text-slate-500">Các tệp kết quả (model checkpoint, csv, visualization) được sinh ra sau khi chạy:</p>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+            <div class="flex items-center gap-2">
+              <i data-lucide="folder-output" class="w-4 h-4 text-cyan-600"></i>
+              <span class="text-xs text-slate-700 font-medium">Tệp kết quả (checkpoint, csv, artifacts) sinh ra từ phiên chạy:</span>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap justify-end">
+              <button onclick="useCurrentKernelOutputAsInput()" id="btnUseOutputAsInput" class="px-2.5 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer" title="Chuyển sang Run Hub và tự động mount output của notebook này làm input (Zero download)">
+                <i data-lucide="git-merge" class="w-3.5 h-3.5"></i> <span>Dùng làm Input</span>
+              </button>
+              <button onclick="openCreateDatasetFromOutputModal()" id="btnCreateDatasetFromOutput" class="px-2.5 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-50 border border-cyan-200 hover:bg-cyan-100 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer" title="Tải các tệp output này và xuất bản thành Kaggle Dataset mới">
+                <i data-lucide="database" class="w-3.5 h-3.5"></i> <span>Tạo Dataset</span>
+              </button>
+            </div>
+          </div>
           <div id="inspectorFilesList" class="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-64 overflow-y-auto">
             <p class="p-4 text-slate-400 text-center">Chưa có file output nào.</p>
           </div>
@@ -3344,6 +3515,16 @@
         const files = (data.output && data.output.files) || [];
         document.getElementById('inspFilesCountBadge').innerText = files.length;
         const filesContainer = document.getElementById('inspectorFilesList');
+        const btnCreateDs = document.getElementById('btnCreateDatasetFromOutput');
+        if (btnCreateDs) {
+          if (files.length === 0) {
+            btnCreateDs.classList.add('opacity-50', 'pointer-events-none');
+            btnCreateDs.title = 'Chưa có file output nào để tạo dataset';
+          } else {
+            btnCreateDs.classList.remove('opacity-50', 'pointer-events-none');
+            btnCreateDs.title = `Tải và tạo Kaggle Dataset từ ${files.length} file output`;
+          }
+        }
         if (files.length === 0) {
           filesContainer.innerHTML = '<p class="p-4 text-slate-400 text-center">Chưa có tệp output nào được tạo ra từ phiên chạy này.</p>';
         } else {
@@ -4274,6 +4455,198 @@
         btnText.innerText = 'Tạo Dataset Trên Kaggle';
         progContainer.classList.add('hidden');
         lucide.createIcons();
+      }
+    }
+
+    // ==================== WORKFLOW: USE NOTEBOOK OUTPUT AS INPUT OR CREATE DATASET ====================
+    function useCurrentKernelOutputAsInput() {
+      if (!currentInspectedKernel) {
+        showToast('Chưa chọn notebook nào.', 'error');
+        return;
+      }
+      const { ref } = currentInspectedKernel;
+      const title = (currentInspectorData && currentInspectorData.title) || ref;
+
+      closeInspectorModal();
+      switchTab('trainer');
+
+      // Add as kernel source (mounts /kaggle/input/<slug>)
+      addInputSource('kernel', ref, title);
+
+      setTimeout(() => {
+        const el = document.getElementById('selectedInputsContainer') || document.getElementById('selectedInputsList');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-purple-400', 'transition-all');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-purple-400'), 2500);
+        }
+      }, 250);
+    }
+
+    function openCreateDatasetFromOutputModal() {
+      if (!currentInspectedKernel || !currentInspectorData) {
+        showToast('Chưa có thông tin notebook.', 'error');
+        return;
+      }
+
+      const { account, ref } = currentInspectedKernel;
+      const version = currentInspectedKernel.version || (currentInspectorData && (currentInspectorData.selected_version || currentInspectorData.current_version)) || null;
+      const title = currentInspectorData.title || (ref.includes('/') ? ref.split('/')[1] : ref);
+      const files = (currentInspectorData.output && currentInspectorData.output.files) || [];
+
+      if (files.length === 0) {
+        showToast('Notebook này chưa có tệp output nào để tạo dataset.', 'warning');
+        return;
+      }
+
+      document.getElementById('dsFromOutputKernelRef').innerText = ref;
+      document.getElementById('dsFromOutputVersionBadge').innerText = version ? `Version ${version}` : 'Version mới nhất';
+
+      // Pre-fill Title & Slug
+      const cleanBaseTitle = title.replace(/[-_]+/g, ' ').trim();
+      let defaultTitle = `${cleanBaseTitle} Output`.slice(0, 50);
+      if (defaultTitle.length < 6) defaultTitle = `${defaultTitle} Dataset`.slice(0, 50);
+      document.getElementById('dsFromOutputTitle').value = defaultTitle;
+
+      // Fill Account Selector
+      const accSelect = document.getElementById('dsFromOutputAccount');
+      const poolAccounts = [
+        'kitnehi1211', 'baovuong3009', 'justb2464', 'kittruong',
+        'lngchip', 'phatle54', 'thaivu1', 'truongkietphu', 'xyzabz'
+      ];
+      if (account && !poolAccounts.includes(account)) {
+        poolAccounts.push(account);
+      }
+      accSelect.innerHTML = poolAccounts.map(acc => 
+        `<option value="${acc}" ${acc === 'kitnehi1211' ? 'selected' : (acc === account ? 'selected' : '')}>@${acc}</option>`
+      ).join('');
+
+      updateDsFromOutputSlugPreview(defaultTitle);
+
+      // Render Files Checkbox List
+      const filesContainer = document.getElementById('dsFromOutputFilesContainer');
+      filesContainer.innerHTML = files.map(f => `
+        <label class="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer text-xs select-none transition-colors">
+          <div class="flex items-center gap-2 overflow-hidden pr-2">
+            <input type="checkbox" name="dsOutputFiles" value="${f.file_name}" checked class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 cursor-pointer">
+            <i data-lucide="file" class="w-3.5 h-3.5 text-cyan-600 flex-shrink-0"></i>
+            <span class="font-mono text-slate-800 truncate" title="${f.file_name}">${f.file_name}</span>
+          </div>
+          ${f.size ? `<span class="text-[10px] text-slate-400 font-mono flex-shrink-0">${f.size}</span>` : ''}
+        </label>
+      `).join('');
+
+      document.getElementById('dsFromOutputProgress').classList.add('hidden');
+      document.getElementById('btnSubmitDsFromOutput').disabled = false;
+      document.getElementById('btnSubmitDsFromOutputText').innerText = 'Tạo Dataset Ngay';
+
+      // Open modal
+      const modal = document.getElementById('createDatasetFromOutputModal');
+      modal.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeCreateDatasetFromOutputModal() {
+      const modal = document.getElementById('createDatasetFromOutputModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function selectAllDsFromOutputFiles(check) {
+      const cbs = document.querySelectorAll('#dsFromOutputFilesContainer input[type="checkbox"]');
+      cbs.forEach(cb => { cb.checked = check; });
+    }
+
+    function updateDsFromOutputSlugPreview(customTitle) {
+      const titleVal = customTitle !== undefined ? customTitle : (document.getElementById('dsFromOutputTitle') ? document.getElementById('dsFromOutputTitle').value : '');
+      const accVal = document.getElementById('dsFromOutputAccount') ? document.getElementById('dsFromOutputAccount').value : 'kitnehi1211';
+      let cleanSlug = (titleVal || '').toLowerCase().replace(/[^a-z0-9\-]+/g, '-').replace(/^-+|-+$/g, '');
+      if (!cleanSlug) cleanSlug = 'output-dataset';
+      if (cleanSlug.length < 6) cleanSlug = `${cleanSlug}-dataset`;
+      if (cleanSlug.length > 50) cleanSlug = cleanSlug.slice(0, 50).replace(/-+$/, '');
+      const previewEl = document.getElementById('dsFromOutputSlugPreview');
+      if (previewEl) {
+        previewEl.innerText = `${accVal}/${cleanSlug}`;
+      }
+    }
+
+    async function handleCreateDatasetFromOutputSubmit(event) {
+      event.preventDefault();
+      if (!currentInspectedKernel) {
+        showToast('Chưa chọn notebook nguồn.', 'error');
+        return;
+      }
+
+      const { account, ref } = currentInspectedKernel;
+      const version = currentInspectedKernel.version || (currentInspectorData && (currentInspectorData.selected_version || currentInspectorData.current_version)) || null;
+      const title = document.getElementById('dsFromOutputTitle').value.trim();
+      const targetAcc = document.getElementById('dsFromOutputAccount').value;
+      const isPrivate = document.getElementById('dsFromOutputIsPrivate').checked;
+      const autoShare = document.getElementById('dsFromOutputAutoShare').checked;
+      const includeLog = document.getElementById('dsFromOutputIncludeLog').checked;
+
+      const checkedBoxes = document.querySelectorAll('#dsFromOutputFilesContainer input[type="checkbox"]:checked');
+      const checkedFiles = Array.from(checkedBoxes).map(cb => cb.value);
+
+      if (checkedFiles.length === 0 && !includeLog) {
+        showToast('Vui lòng chọn ít nhất một tệp output để tạo dataset!', 'warning');
+        return;
+      }
+
+      const btn = document.getElementById('btnSubmitDsFromOutput');
+      const btnText = document.getElementById('btnSubmitDsFromOutputText');
+      const prog = document.getElementById('dsFromOutputProgress');
+
+      btn.disabled = true;
+      btnText.innerText = 'Đang tải output & đẩy Dataset...';
+      prog.classList.remove('hidden');
+
+      try {
+        const payload = {
+          account: account,
+          kernel_ref: ref,
+          version: version,
+          dataset_title: title,
+          target_account: targetAcc,
+          is_private: isPrivate,
+          selected_files: checkedFiles,
+          auto_share_all: autoShare,
+          include_log: includeLog
+        };
+
+        const res = await fetch('/api/kernels/create-dataset-from-output', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          showToast(result.message || 'Tạo Dataset thành công trên Kaggle!', 'success');
+          closeCreateDatasetFromOutputModal();
+          closeInspectorModal();
+
+          // Refresh and switch to datasets tab
+          if (typeof fetchDatasets === 'function') {
+            await fetchDatasets();
+          }
+          switchTab('datasets');
+
+          if (result.url) {
+            setTimeout(() => {
+              if (confirm(`Dataset đã được tạo thành công trên Kaggle tại:\n${result.url}\n\nBạn có muốn mở xem ngay trên Kaggle không?`)) {
+                window.open(result.url, '_blank');
+              }
+            }, 300);
+          }
+        } else {
+          showToast('Không thể tạo dataset: ' + (result.message || 'Lỗi không xác định'), 'error');
+        }
+      } catch (err) {
+        showToast('Lỗi kết nối khi tạo dataset: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btnText.innerText = 'Tạo Dataset Ngay';
+        prog.classList.add('hidden');
       }
     }
 
@@ -5988,6 +6361,13 @@
           btnDraft.className = 'px-4 py-2.5 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
           btnDraft.title = 'Lưu bản nháp cục bộ trên Dashboard (0% GPU, tuyệt đối không tạo version mới trên Kaggle)';
         }
+        const btnSave = document.getElementById('btnSubmitSaveOnly');
+        const textSave = document.getElementById('textSubmitSaveOnly');
+        if (textSave) textSave.innerHTML = '💾 Quick Save (Kaggle - 0% GPU)';
+        if (btnSave) {
+          btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
+          btnSave.title = 'Đẩy code lên Kaggle (Quick Save - 0% GPU), tạo version mới trên Kaggle mà không chạy code';
+        }
         const draftBadge = document.getElementById('studioDraftBadge');
         if (draftBadge) draftBadge.classList.add('hidden');
         const discardBtn = document.getElementById('btnDiscardDraft');
@@ -6162,9 +6542,17 @@
         btnDraft.title = 'Lưu bản nháp cục bộ trên Dashboard (0% GPU, tuyệt đối không tạo version mới trên Kaggle)';
       }
 
+      const btnSave = document.getElementById('btnSubmitSaveOnly');
+      const textSave = document.getElementById('textSubmitSaveOnly');
+      if (textSave) textSave.innerHTML = '💾 Quick Save (Kaggle - 0% GPU)';
+      if (btnSave) {
+        btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
+        btnSave.title = 'Đẩy code lên Kaggle (Quick Save - 0% GPU), tạo version mới trên Kaggle mà không chạy code';
+      }
+
       const summary = document.getElementById('runnerStatusSummary');
       if (summary) {
-        summary.innerHTML = `✏️ Đang sửa <strong class="text-indigo-700">${ref}</strong> (Bấm "Lưu Bản Nháp" hoặc "Lưu & Chạy GPU")`;
+        summary.innerHTML = `✏️ Đang sửa <strong class="text-indigo-700">${ref}</strong> (Bấm "Lưu Bản Nháp", "Quick Save" hoặc "Lưu & Chạy GPU")`;
       }
 
       // Check if local draft exists
@@ -6704,34 +7092,43 @@
       document.getElementById('runnerStatusSummary').innerText = 'Sẵn sàng gửi lệnh lên Kaggle';
     }
 
-    // Robust parser for Kaggle URLs and references
+    // Robust parser for Kaggle URLs and references (supports pinned versions: owner/slug/version)
     function parseKaggleUrlOrSlug(input) {
       if (!input) return null;
-      let clean = input.trim();
-      clean = clean.split('?')[0].split('#')[0].replace(/\/+$/, '');
+      let raw = input.trim();
+      let urlVerMatch = raw.match(/[?&]version=v?(\d+)/i);
+      let urlVersion = urlVerMatch ? urlVerMatch[1] : null;
 
-      // 1. Notebook / Code URL: kaggle.com/code/<owner>/<slug>
-      const codeMatch = clean.match(/kaggle\.com\/code\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)/i);
+      let clean = raw.split('?')[0].split('#')[0].replace(/\/+$/, '');
+
+      // 1. Notebook / Code URL: kaggle.com/code/<owner>/<slug>[/<version>]
+      const codeMatch = clean.match(/kaggle\.com\/code\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)(?:\/v?(\d+))?/i);
       if (codeMatch) {
+        const ver = codeMatch[3] || urlVersion;
+        const refStr = ver ? `${codeMatch[1]}/${codeMatch[2]}/${ver}` : `${codeMatch[1]}/${codeMatch[2]}`;
         return {
           type: 'kernel',
-          ref: `${codeMatch[1]}/${codeMatch[2]}`,
+          ref: refStr,
           owner: codeMatch[1],
           slug: codeMatch[2],
-          title: codeMatch[2],
+          version: ver,
+          title: ver ? `${codeMatch[2]} (v${ver})` : codeMatch[2],
           isUrl: true
         };
       }
 
-      // 2. Dataset URL: kaggle.com/datasets/<owner>/<slug>
-      const dsMatch = clean.match(/kaggle\.com\/datasets\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)/i);
+      // 2. Dataset URL: kaggle.com/datasets/<owner>/<slug>[/<version>]
+      const dsMatch = clean.match(/kaggle\.com\/datasets\/([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)(?:\/v?(\d+))?/i);
       if (dsMatch) {
+        const ver = dsMatch[3] || urlVersion;
+        const refStr = ver ? `${dsMatch[1]}/${dsMatch[2]}/${ver}` : `${dsMatch[1]}/${dsMatch[2]}`;
         return {
           type: 'dataset',
-          ref: `${dsMatch[1]}/${dsMatch[2]}`,
+          ref: refStr,
           owner: dsMatch[1],
           slug: dsMatch[2],
-          title: dsMatch[2],
+          version: ver,
+          title: ver ? `${dsMatch[2]} (v${ver})` : dsMatch[2],
           isUrl: true
         };
       }
@@ -6788,7 +7185,26 @@
         };
       }
 
-      // 6. Bare owner/slug format: e.g. kitnehi1211/build-wheels
+      // 6. Bare owner/slug/version format: e.g. kitnehi1211/build-wheels/4
+      const bareVerMatch = clean.match(/^([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)\/v?(\d+)$/);
+      if (bareVerMatch) {
+        const owner = bareVerMatch[1];
+        const slug = bareVerMatch[2];
+        const ver = bareVerMatch[3];
+        const baseRef = `${owner}/${slug}`;
+        const isKernel = (kernelsData || []).some(k => k.ref && k.ref.toLowerCase() === baseRef.toLowerCase());
+        return {
+          type: isKernel ? 'kernel' : 'dataset',
+          ref: `${owner}/${slug}/${ver}`,
+          owner: owner,
+          slug: slug,
+          version: ver,
+          title: `${slug} (v${ver})`,
+          isUrl: false
+        };
+      }
+
+      // 7. Bare owner/slug format: e.g. kitnehi1211/build-wheels
       const bareMatch = clean.match(/^([a-zA-Z0-9_\-]+)\/([a-zA-Z0-9_\-]+)$/);
       if (bareMatch) {
         const isKernel = (kernelsData || []).some(k => k.ref && k.ref.toLowerCase() === clean.toLowerCase());
@@ -6977,11 +7393,32 @@
           typeBadge = '<span class="text-[9px] px-1 py-0.5 bg-emerald-200 text-emerald-900 rounded font-semibold uppercase">Model</span>';
         }
 
+        let versionPinBadge = '';
+        if (i.type === 'kernel' || i.type === 'dataset') {
+          const parts = i.ref.split('/');
+          const hasVersion = parts.length === 3 && /^\d+$/.test(parts[2]);
+          if (hasVersion) {
+            versionPinBadge = `
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300" title="Đã ghim cố định Version ${parts[2]} (An toàn: Không bao giờ bị ảnh hưởng nếu notebook này có Quick Save rỗng sau này)">
+                <span>📌 v${parts[2]}</span>
+                <button type="button" onclick="promptChangeInputVersion('${i.ref}')" class="hover:text-rose-600 ml-0.5" title="Đổi hoặc bỏ ghim version">✏️</button>
+              </span>
+            `;
+          } else {
+            versionPinBadge = `
+              <button type="button" onclick="promptChangeInputVersion('${i.ref}')" class="text-[10px] text-purple-700 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-1.5 py-0.5 rounded font-semibold cursor-pointer border border-purple-200" title="Hiện đang lấy bản Mới nhất. Bấm để Ghim một phiên bản cụ thể (Pin Version) tránh bị rỗng output">
+                ⚡ Mới nhất (Ghim?)
+              </button>
+            `;
+          }
+        }
+
         return `
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${badgeColor} shadow-xs">
             <i data-lucide="${icon}" class="w-3.5 h-3.5 flex-shrink-0"></i>
             ${typeBadge}
             <span class="font-mono text-[11px] truncate max-w-xs" title="${i.ref}">${i.ref}</span>
+            ${versionPinBadge}
             <button type="button" onclick="removeInputSource('${i.ref}')" class="text-slate-400 hover:text-rose-600 ml-0.5 cursor-pointer">
               <i data-lucide="x" class="w-3 h-3"></i>
             </button>
@@ -6989,6 +7426,33 @@
         `;
       }).join('');
       lucide.createIcons();
+    }
+
+    function promptChangeInputVersion(currentRef) {
+      const parts = currentRef.split('/');
+      const baseRef = (parts.length >= 2) ? `${parts[0]}/${parts[1]}` : currentRef;
+      const currentVer = (parts.length === 3) ? parts[2] : '';
+      
+      const promptText = `Ghim phiên bản cụ thể cho: ${baseRef}\n\nNhập số Version (ví dụ: 4) để ghim chặt vào output của Version đó.\n(Để trống nếu muốn luôn lấy bản Mới nhất):`;
+      const input = prompt(promptText, currentVer);
+      if (input === null) return; // User cancelled
+      
+      const cleanVer = input.trim().replace(/^v/i, '');
+      let newRef = baseRef;
+      if (cleanVer && /^\d+$/.test(cleanVer)) {
+        newRef = `${baseRef}/${cleanVer}`;
+        showToast(`📌 Đã ghim ${baseRef} vào Version ${cleanVer}!`, 'success');
+      } else {
+        showToast(`⚡ Đã đặt ${baseRef} về chế độ Luôn lấy bản mới nhất!`, 'info');
+      }
+
+      // Update in selectedInputSources
+      const idx = selectedInputSources.findIndex(s => s.ref === currentRef);
+      if (idx !== -1) {
+        selectedInputSources[idx].ref = newRef;
+        selectedInputSources[idx].title = newRef;
+        renderSelectedInputs();
+      }
     }
 
     // Submit Notebook Run or Save Version
@@ -7050,10 +7514,16 @@
 
       const btnRun = document.getElementById('btnSubmitRun');
       const btnDraft = document.getElementById('btnSubmitDraft');
+      const btnSave = document.getElementById('btnSubmitSaveOnly');
       if (btnRun) btnRun.disabled = true;
       if (btnDraft) btnDraft.disabled = true;
+      if (btnSave) btnSave.disabled = true;
 
-      if (btnRun) btnRun.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Đang gửi lệnh GPU...</span>';
+      if (mode === 'save_only') {
+        if (btnSave) btnSave.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-600"></i><span>Đang lưu lên Kaggle...</span>';
+      } else {
+        if (btnRun) btnRun.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Đang gửi lệnh GPU...</span>';
+      }
       lucide.createIcons();
 
       try {
@@ -7072,7 +7542,7 @@
           is_notebook: trainerIsNotebook,
           language: 'python',
           backup_to_master: Boolean(document.getElementById('trainerBackupToMaster')?.checked),
-          save_only: false
+          save_only: (mode === 'save_only')
         };
 
         const res = await fetch('/api/runner/run', {
@@ -7179,6 +7649,12 @@
           btnDraft.disabled = false;
           btnDraft.className = 'px-4 py-2.5 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
           btnDraft.innerHTML = '<i data-lucide="file-edit" class="w-4 h-4 text-amber-600"></i><span id="textSubmitDraft">📝 Lưu Bản Nháp (Draft - 0% GPU)</span>';
+        }
+        const btnSave = document.getElementById('btnSubmitSaveOnly');
+        if (btnSave) {
+          btnSave.disabled = false;
+          btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
+          btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-indigo-600"></i><span id="textSubmitSaveOnly">💾 Quick Save (Kaggle - 0% GPU)</span>';
         }
         lucide.createIcons();
       }
