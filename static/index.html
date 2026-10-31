@@ -954,6 +954,10 @@
                     <i data-lucide="git-branch" class="w-3 h-3 text-purple-600"></i>
                     <span id="studioVersionTargetText">Phiên bản: Mới</span>
                   </span>
+                  <span id="studioDraftBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1" title="Bản nháp đang được lưu an toàn trên Dashboard">
+                    <i data-lucide="file-edit" class="w-3 h-3 text-amber-600"></i>
+                    <span id="studioDraftText">Bản Nháp (Chưa đẩy lên Kaggle)</span>
+                  </span>
                 </div>
 
                 <div class="flex items-center gap-1.5 flex-wrap">
@@ -1063,11 +1067,11 @@
                 </span>
               </div>
 
-              <!-- Notice when editing: Quick Save vs Run GPU -->
-              <div id="editModeHardwareNotice" class="hidden mb-3 p-3 bg-indigo-50/80 border border-indigo-200 rounded-xl text-xs text-indigo-900 flex items-start gap-2 shadow-2xs">
-                <i data-lucide="info" class="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5"></i>
+              <!-- Notice when editing: Draft Save vs Run GPU -->
+              <div id="editModeHardwareNotice" class="hidden mb-3 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2 shadow-2xs">
+                <i data-lucide="file-edit" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
                 <div class="text-[11px] leading-relaxed">
-                  <strong>Chế độ sửa notebook:</strong> Bạn có 2 lựa chọn: Bấm <strong>"💾 Chỉ Lưu (Quick Save)"</strong> để lưu code & input lên Kaggle mà <strong>không chạy</strong> (0% GPU). Hoặc nếu sửa xong muốn chạy luôn, chọn GPU rồi bấm <strong>"🚀 Lưu & Chạy GPU"</strong>.
+                  <strong>Chế độ sửa notebook:</strong> Bấm <strong>"📝 Lưu Bản Nháp"</strong> để lưu tạm thời code & input an toàn trên Dashboard mà <strong>tuyệt đối không tạo version mới trên Kaggle</strong>. Khi bạn đã hoàn thành việc chỉnh sửa, bấm <strong>"🚀 Lưu & Chạy GPU"</strong> để kích hoạt phiên chạy trên Kaggle.
                 </div>
               </div>
 
@@ -1187,9 +1191,13 @@
                   <button type="button" onclick="openNotebookShareModal()" class="px-3 py-2 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Cấu hình quyền riêng tư và chia sẻ cộng tác viên">
                     <i data-lucide="share-2" class="w-3.5 h-3.5 text-purple-600"></i> Quản Lý Chia Sẻ
                   </button>
-                  <button type="button" id="btnSubmitSaveOnly" onclick="submitRunNotebook('save_only')" class="px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer" title="Chỉ lưu mã nguồn và input lên Kaggle (Quick Save), không chạy bất kỳ phần cứng nào, 0% GPU">
-                    <i data-lucide="save" class="w-4 h-4 text-indigo-600"></i>
-                    <span id="textSubmitSaveOnly">💾 Chỉ Lưu (Quick Save - 0% GPU)</span>
+                  <button type="button" id="btnSubmitDraft" onclick="saveNotebookDraft()" class="px-4 py-2.5 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer" title="Lưu bản nháp cục bộ trên Dashboard (0% GPU, tuyệt đối không tạo version mới trên Kaggle)">
+                    <i data-lucide="file-edit" class="w-4 h-4 text-amber-600"></i>
+                    <span id="textSubmitDraft">📝 Lưu Bản Nháp (Draft - 0% GPU)</span>
+                  </button>
+                  <button type="button" id="btnDiscardDraft" onclick="discardCurrentDraft()" class="hidden px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl flex items-center gap-1 transition-colors cursor-pointer" title="Xóa bỏ bản nháp và nạp lại code gốc từ Kaggle">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5 text-rose-500"></i>
+                    <span>Hủy Nháp</span>
                   </button>
                   <button type="button" id="btnSubmitRun" onclick="submitRunNotebook('gpu')" class="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 rounded-xl flex items-center gap-2 transition-all shadow-md hover:shadow-purple-500/30 disabled:opacity-50 cursor-pointer" title="Lưu mã nguồn và bắt đầu phiên chạy huấn luyện ngay trên máy chủ Kaggle (GPU)">
                     <i data-lucide="play" class="w-4 h-4 fill-current"></i>
@@ -5973,13 +5981,17 @@
           btnRun.classList.remove('hidden');
           if (textRun) textRun.innerHTML = '🚀 1-Click: Lưu & Huấn Luyện GPU';
         }
-        const btnSave = document.getElementById('btnSubmitSaveOnly');
-        const textSave = document.getElementById('textSubmitSaveOnly');
-        if (textSave) textSave.innerHTML = '💾 Chỉ Lưu (Quick Save - 0% GPU)';
-        if (btnSave) {
-          btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
-          btnSave.title = 'Chỉ lưu mã nguồn và input lên Kaggle (Quick Save, không chạy bất kỳ phần cứng nào, 0% GPU)';
+        const btnDraft = document.getElementById('btnSubmitDraft');
+        const textDraft = document.getElementById('textSubmitDraft');
+        if (textDraft) textDraft.innerHTML = '📝 Lưu Bản Nháp (Draft - 0% GPU)';
+        if (btnDraft) {
+          btnDraft.className = 'px-4 py-2.5 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
+          btnDraft.title = 'Lưu bản nháp cục bộ trên Dashboard (0% GPU, tuyệt đối không tạo version mới trên Kaggle)';
         }
+        const draftBadge = document.getElementById('studioDraftBadge');
+        if (draftBadge) draftBadge.classList.add('hidden');
+        const discardBtn = document.getElementById('btnDiscardDraft');
+        if (discardBtn) discardBtn.classList.add('hidden');
       }
 
       // 1. Reset source mode to local
@@ -6133,7 +6145,7 @@
       const hwGrid = document.getElementById('trainerHardwareGrid');
       if (hwGrid) hwGrid.classList.remove('opacity-60', 'pointer-events-none');
 
-      // 5. Update Action Buttons: BOTH buttons are available in Edit Mode!
+      // 5. Update Action Buttons: Draft Save & Run GPU
       const btnRun = document.getElementById('btnSubmitRun');
       const textRun = document.getElementById('textSubmitRun');
       if (btnRun) {
@@ -6142,18 +6154,21 @@
         btnRun.title = 'Lưu mã nguồn vừa sửa và kích hoạt phiên huấn luyện ngay trên GPU';
       }
 
-      const btnSave = document.getElementById('btnSubmitSaveOnly');
-      const textSave = document.getElementById('textSubmitSaveOnly');
-      if (textSave) textSave.innerHTML = '💾 Chỉ Lưu (Quick Save - 0% GPU)';
-      if (btnSave) {
-        btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
-        btnSave.title = 'Chỉ lưu mã nguồn và input lên Kaggle (Quick Save), tuyệt đối không chạy cell nào, 0% GPU';
+      const btnDraft = document.getElementById('btnSubmitDraft');
+      const textDraft = document.getElementById('textSubmitDraft');
+      if (textDraft) textDraft.innerHTML = '📝 Lưu Bản Nháp (Draft - 0% GPU)';
+      if (btnDraft) {
+        btnDraft.className = 'px-4 py-2.5 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
+        btnDraft.title = 'Lưu bản nháp cục bộ trên Dashboard (0% GPU, tuyệt đối không tạo version mới trên Kaggle)';
       }
 
       const summary = document.getElementById('runnerStatusSummary');
       if (summary) {
-        summary.innerHTML = `✏️ Đang sửa <strong class="text-indigo-700">${ref}</strong> (Bấm "Chỉ Lưu" hoặc "Lưu & Chạy GPU")`;
+        summary.innerHTML = `✏️ Đang sửa <strong class="text-indigo-700">${ref}</strong> (Bấm "Lưu Bản Nháp" hoặc "Lưu & Chạy GPU")`;
       }
+
+      // Check if local draft exists
+      checkAndLoadDraftForNotebook(account, ref, meta);
 
       lucide.createIcons();
     }
@@ -6162,6 +6177,182 @@
       resetTrainerForm(false);
       if (notify) {
         showToast('Đã thoát chế độ chỉnh sửa. Bạn có thể soạn notebook mới!', 'info');
+      }
+    }
+
+    async function checkAndLoadDraftForNotebook(account, ref, meta) {
+      try {
+        const res = await fetch(`/api/runner/draft?ref=${encodeURIComponent(ref)}&account=${encodeURIComponent(account)}`);
+        const data = await res.json();
+        if (data.success && data.has_draft && data.draft) {
+          const draft = data.draft;
+          const draftBadge = document.getElementById('studioDraftBadge');
+          const draftText = document.getElementById('studioDraftText');
+          if (draftBadge) draftBadge.classList.remove('hidden');
+          if (draftText) draftText.textContent = `Bản Nháp (Lưu ${draft.updated_at_human || 'cục bộ'})`;
+
+          const discardBtn = document.getElementById('btnDiscardDraft');
+          if (discardBtn) discardBtn.classList.remove('hidden');
+
+          // If draft source_code differs from current loaded source code, apply draft!
+          if (draft.source_code && draft.source_code !== currentTrainerSourceCode) {
+            currentTrainerSourceCode = draft.source_code;
+            if (typeof initNotebookStudio === 'function') {
+              initNotebookStudio(currentTrainerSourceCode, meta.title || draft.title || ref, draft.is_notebook !== false);
+            }
+            showToast(`📝 Đã tự động nạp Bản Nháp của bạn từ Dashboard (Lưu ${draft.updated_at_human})!`, 'info');
+          }
+        } else {
+          const draftBadge = document.getElementById('studioDraftBadge');
+          if (draftBadge) draftBadge.classList.add('hidden');
+          const discardBtn = document.getElementById('btnDiscardDraft');
+          if (discardBtn) discardBtn.classList.add('hidden');
+        }
+      } catch (e) {
+        console.warn('Could not check draft for notebook:', e);
+      }
+    }
+
+    async function saveNotebookDraft() {
+      if (studioViewMode === 'cells') {
+        syncStudioToSourceCode();
+      } else {
+        const rawTa = document.getElementById('trainerRawSourceTextarea');
+        if (rawTa) onTrainerRawSourceInput(rawTa.value);
+      }
+
+      const targetAccount = (isEditingExistingNotebook && editingNotebookContext && editingNotebookContext.account)
+        ? editingNotebookContext.account
+        : (document.getElementById('trainerTargetAccount')?.value || 'kitnehi1211');
+      const slug = (isEditingExistingNotebook && editingNotebookContext && editingNotebookContext.slug)
+        ? editingNotebookContext.slug
+        : (document.getElementById('trainerSlug')?.value?.trim() || '');
+      const title = document.getElementById('trainerTitle')?.value?.trim() || slug || 'Notebook Draft';
+      const ref = (editingNotebookContext && editingNotebookContext.ref)
+        ? editingNotebookContext.ref
+        : `${targetAccount}/${slug}`;
+
+      if (!slug) {
+        showToast('Vui lòng nhập định danh Slug trước khi lưu nháp.', 'warning');
+        return;
+      }
+      if (!currentTrainerSourceCode || !currentTrainerSourceCode.trim()) {
+        showToast('Mã nguồn notebook đang trống! Vui lòng chọn một notebook hoặc tải file lên.', 'error');
+        return;
+      }
+
+      const btnDraft = document.getElementById('btnSubmitDraft');
+      if (btnDraft) {
+        btnDraft.disabled = true;
+        btnDraft.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-amber-600"></i><span>Đang lưu nháp...</span>';
+      }
+      lucide.createIcons();
+
+      let machineShape = 'NvidiaTeslaT4';
+      const radios = document.getElementsByName('trainerHardware');
+      for (const r of radios) {
+        if (r.checked) {
+          machineShape = r.value;
+          break;
+        }
+      }
+
+      const enableInternet = document.getElementById('trainerEnableInternet')?.checked !== false;
+      const isPrivate = document.getElementById('trainerIsPrivate')?.checked !== false;
+
+      const datasetSources = selectedInputSources.filter(s => s.type === 'dataset').map(s => s.ref);
+      const kernelSources = selectedInputSources.filter(s => s.type === 'kernel').map(s => s.ref);
+      const competitionSources = selectedInputSources.filter(s => s.type === 'competition').map(s => s.ref);
+      const modelSources = selectedInputSources.filter(s => s.type === 'model').map(s => s.ref);
+
+      const payload = {
+        ref: ref,
+        target_account: targetAccount,
+        account: targetAccount,
+        slug: slug,
+        title: title,
+        source_code: currentTrainerSourceCode || '',
+        machine_shape: machineShape,
+        enable_internet: enableInternet,
+        is_private: isPrivate,
+        dataset_sources: datasetSources,
+        kernel_sources: kernelSources,
+        competition_sources: competitionSources,
+        model_sources: modelSources,
+        is_notebook: trainerIsNotebook,
+        language: 'python'
+      };
+
+      try {
+        const res = await fetch('/api/runner/draft/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`📝 Đã lưu bản nháp thành công! (0% GPU, không tạo version trên Kaggle)`, 'success');
+          
+          const draftBadge = document.getElementById('studioDraftBadge');
+          const draftText = document.getElementById('studioDraftText');
+          if (draftBadge) draftBadge.classList.remove('hidden');
+          if (draftText) draftText.textContent = `Bản Nháp (Lưu ${data.draft?.updated_at_human || 'vừa xong'})`;
+
+          const discardBtn = document.getElementById('btnDiscardDraft');
+          if (discardBtn) discardBtn.classList.remove('hidden');
+
+          const summary = document.getElementById('runnerStatusSummary');
+          if (summary) {
+            summary.innerHTML = `📝 Đã lưu bản nháp <strong class="text-amber-700">${ref}</strong> (Chỉ lưu trên Dashboard, 0% GPU, 0 version Kaggle)`;
+          }
+        } else {
+          showToast(data.message || 'Lỗi khi lưu bản nháp.', 'error');
+        }
+      } catch (err) {
+        console.error('Error saving draft:', err);
+        showToast('Lỗi kết nối khi lưu bản nháp.', 'error');
+      } finally {
+        if (btnDraft) {
+          btnDraft.disabled = false;
+          btnDraft.innerHTML = '<i data-lucide="file-edit" class="w-4 h-4 text-amber-600"></i><span id="textSubmitDraft">📝 Lưu Bản Nháp (Draft - 0% GPU)</span>';
+        }
+        lucide.createIcons();
+      }
+    }
+
+    async function discardCurrentDraft() {
+      const targetAccount = (editingNotebookContext && editingNotebookContext.account)
+        ? editingNotebookContext.account
+        : (document.getElementById('trainerTargetAccount')?.value || 'kitnehi1211');
+      const slug = (editingNotebookContext && editingNotebookContext.slug)
+        ? editingNotebookContext.slug
+        : (document.getElementById('trainerSlug')?.value?.trim() || '');
+      const ref = (editingNotebookContext && editingNotebookContext.ref)
+        ? editingNotebookContext.ref
+        : `${targetAccount}/${slug}`;
+
+      if (!confirm(`Bạn có chắc muốn xóa bản nháp của ${ref} và nạp lại code gốc từ Kaggle không?`)) {
+        return;
+      }
+
+      try {
+        await fetch(`/api/runner/draft?ref=${encodeURIComponent(ref)}&account=${encodeURIComponent(targetAccount)}&slug=${encodeURIComponent(slug)}`, {
+          method: 'DELETE'
+        });
+        showToast('Đã xóa bản nháp!', 'info');
+
+        const draftBadge = document.getElementById('studioDraftBadge');
+        if (draftBadge) draftBadge.classList.add('hidden');
+        const discardBtn = document.getElementById('btnDiscardDraft');
+        if (discardBtn) discardBtn.classList.add('hidden');
+
+        // Reload original code from Kaggle
+        if (editingNotebookContext && editingNotebookContext.ref) {
+          onTrainerNotebookSelectChange(editingNotebookContext.ref, editingNotebookContext.account);
+        }
+      } catch (err) {
+        console.error('Error discarding draft:', err);
+        showToast('Lỗi khi xóa bản nháp.', 'error');
       }
     }
 
@@ -6858,15 +7049,11 @@
       const modelSources = selectedInputSources.filter(i => i.type === 'model').map(i => i.ref);
 
       const btnRun = document.getElementById('btnSubmitRun');
-      const btnSave = document.getElementById('btnSubmitSaveOnly');
+      const btnDraft = document.getElementById('btnSubmitDraft');
       if (btnRun) btnRun.disabled = true;
-      if (btnSave) btnSave.disabled = true;
+      if (btnDraft) btnDraft.disabled = true;
 
-      if (mode === 'save_only') {
-        if (btnSave) btnSave.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin text-indigo-600"></i><span>Đang lưu lên Kaggle...</span>';
-      } else {
-        if (btnRun) btnRun.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Đang gửi lệnh GPU...</span>';
-      }
+      if (btnRun) btnRun.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Đang gửi lệnh GPU...</span>';
       lucide.createIcons();
 
       try {
@@ -6885,7 +7072,7 @@
           is_notebook: trainerIsNotebook,
           language: 'python',
           backup_to_master: Boolean(document.getElementById('trainerBackupToMaster')?.checked),
-          save_only: (mode === 'save_only')
+          save_only: false
         };
 
         const res = await fetch('/api/runner/run', {
@@ -6943,6 +7130,12 @@
 
         showToast(`🚀 Đã gửi lệnh lưu & huấn luyện GPU thành công trên @${targetAccount}!`, 'success');
         
+        // Hide draft badge and discard button since it has now been sent & running on Kaggle
+        const studioDraftBadge = document.getElementById('studioDraftBadge');
+        if (studioDraftBadge) studioDraftBadge.classList.add('hidden');
+        const discardBtn = document.getElementById('btnDiscardDraft');
+        if (discardBtn) discardBtn.classList.add('hidden');
+
         // Auto-copy notebook link for instant checking
         if (notebookLink) {
           try {
@@ -6981,10 +7174,11 @@
             btnRun.innerHTML = '<i data-lucide="play" class="w-4 h-4 fill-current"></i><span>🚀 1-Click: Lưu & Huấn Luyện GPU</span>';
           }
         }
-        if (btnSave) {
-          btnSave.disabled = false;
-          btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
-          btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-indigo-600"></i><span id="textSubmitSaveOnly">💾 Chỉ Lưu (Quick Save - 0% GPU)</span>';
+        const btnDraft = document.getElementById('btnSubmitDraft');
+        if (btnDraft) {
+          btnDraft.disabled = false;
+          btnDraft.className = 'px-4 py-2.5 text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
+          btnDraft.innerHTML = '<i data-lucide="file-edit" class="w-4 h-4 text-amber-600"></i><span id="textSubmitDraft">📝 Lưu Bản Nháp (Draft - 0% GPU)</span>';
         }
         lucide.createIcons();
       }

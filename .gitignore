@@ -13,6 +13,7 @@
 /data_cache.json
 /quota_data.json
 /training_history.json
+/notebook_drafts.json
 uvicorn.log
 /config.json
 *.tmp

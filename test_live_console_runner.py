@@ -211,5 +211,97 @@ class TestLiveConsoleRunner(unittest.TestCase):
             self.assertEqual(r3.status_code, 200)
             mock_get_meta.assert_called_with("kitnehi1211", "kitnehi1211/my-nb", version=None)
 
+    def test_draft_service_crud(self):
+        with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json", encoding="utf-8") as tf:
+            tf.write("{}")
+            temp_path = tf.name
+
+        try:
+            with patch("kaggle_service.DRAFTS_FILE", temp_path):
+                # 1. Save draft
+                draft_data = {
+                    "ref": "kitnehi1211/my-agent-draft",
+                    "target_account": "kitnehi1211",
+                    "slug": "my-agent-draft",
+                    "title": "My Agent Draft",
+                    "source_code": "print('draft content')",
+                    "machine_shape": "NvidiaTeslaT4",
+                    "enable_internet": True,
+                    "is_private": True,
+                    "dataset_sources": ["kitnehi1211/dataset-x"]
+                }
+                saved = monitor_service.save_draft(draft_data)
+                self.assertEqual(saved["ref"], "kitnehi1211/my-agent-draft")
+                self.assertEqual(saved["source_code"], "print('draft content')")
+
+                # 2. Get draft
+                d = monitor_service.get_draft("kitnehi1211/my-agent-draft")
+                self.assertIsNotNone(d)
+                self.assertEqual(d["title"], "My Agent Draft")
+
+                # 3. List drafts
+                all_drafts = monitor_service.list_drafts()
+                self.assertEqual(len(all_drafts), 1)
+                self.assertEqual(all_drafts[0]["slug"], "my-agent-draft")
+
+                # 4. Delete draft
+                deleted = monitor_service.delete_draft("kitnehi1211/my-agent-draft")
+                self.assertTrue(deleted)
+                d_after = monitor_service.get_draft("kitnehi1211/my-agent-draft")
+                self.assertIsNone(d_after)
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    def test_draft_api_endpoints(self):
+        from fastapi.testclient import TestClient
+        from main import app
+
+        with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json", encoding="utf-8") as tf:
+            tf.write("{}")
+            temp_path = tf.name
+
+        try:
+            with patch("kaggle_service.DRAFTS_FILE", temp_path):
+                client = TestClient(app)
+
+                # Save draft endpoint
+                payload = {
+                    "ref": "kitnehi1211/api-draft-test",
+                    "target_account": "kitnehi1211",
+                    "slug": "api-draft-test",
+                    "title": "API Draft Test",
+                    "source_code": "a = 1 + 2",
+                    "machine_shape": "NvidiaTeslaT4"
+                }
+                save_res = client.post("/api/runner/draft/save", json=payload)
+                self.assertEqual(save_res.status_code, 200)
+                data = save_res.json()
+                self.assertTrue(data["success"])
+                self.assertEqual(data["draft"]["slug"], "api-draft-test")
+
+                # Get draft endpoint
+                get_res = client.get("/api/runner/draft?ref=kitnehi1211/api-draft-test")
+                self.assertEqual(get_res.status_code, 200)
+                self.assertTrue(get_res.json()["has_draft"])
+                self.assertEqual(get_res.json()["draft"]["source_code"], "a = 1 + 2")
+
+                # List drafts endpoint
+                list_res = client.get("/api/runner/drafts")
+                self.assertEqual(list_res.status_code, 200)
+                self.assertEqual(len(list_res.json()["drafts"]), 1)
+
+                # Delete draft endpoint
+                del_res = client.delete("/api/runner/draft?ref=kitnehi1211/api-draft-test")
+                self.assertEqual(del_res.status_code, 200)
+                self.assertTrue(del_res.json()["deleted"])
+
+                # Check deleted
+                check_res = client.get("/api/runner/draft?ref=kitnehi1211/api-draft-test")
+                self.assertFalse(check_res.json()["has_draft"])
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 if __name__ == "__main__":
     unittest.main()

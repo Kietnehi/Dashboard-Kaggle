@@ -158,6 +158,23 @@ class KernelRunRequest(BaseModel):
     backup_to_master: Optional[bool] = False
     save_only: Optional[bool] = False
 
+class NotebookDraftRequest(BaseModel):
+    ref: Optional[str] = None
+    target_account: Optional[str] = ""
+    account: Optional[str] = ""
+    slug: str
+    title: Optional[str] = ""
+    source_code: str
+    machine_shape: Optional[str] = "NvidiaTeslaT4"
+    enable_internet: Optional[bool] = True
+    is_private: Optional[bool] = True
+    dataset_sources: Optional[List[str]] = []
+    kernel_sources: Optional[List[str]] = []
+    competition_sources: Optional[List[str]] = []
+    model_sources: Optional[List[str]] = []
+    is_notebook: Optional[bool] = True
+    language: Optional[str] = "python"
+
 class NotebookShareDatasetsRequest(BaseModel):
     owner_account: str
     dataset_sources: Optional[List[str]] = []
@@ -465,6 +482,54 @@ def run_notebook(req: KernelRunRequest):
         save_only=bool(req.save_only)
     )
     return result
+
+@app.post("/api/runner/draft/save")
+def save_notebook_draft(req: NotebookDraftRequest):
+    """Save notebook draft locally without pushing to Kaggle or incrementing version."""
+    try:
+        data_dict = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+        draft = monitor_service.save_draft(data_dict)
+        return {
+            "success": True,
+            "message": f"Đã lưu bản nháp thành công cho {draft.get('ref')}! (0% GPU, không tạo version trên Kaggle)",
+            "draft": draft
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e), "error": str(e)}
+
+@app.get("/api/runner/draft")
+def get_notebook_draft(
+    ref: Optional[str] = Query(None, description="Ref notebook dạng username/slug"),
+    account: Optional[str] = Query(None, description="Tài khoản sở hữu"),
+    slug: Optional[str] = Query(None, description="Slug notebook")
+):
+    """Get local draft for a notebook if one exists."""
+    draft = monitor_service.get_draft(ref=ref or "", account=account or "", slug=slug or "")
+    return {
+        "success": True,
+        "has_draft": draft is not None,
+        "draft": draft
+    }
+
+@app.delete("/api/runner/draft")
+def delete_notebook_draft(
+    ref: Optional[str] = Query(None, description="Ref notebook dạng username/slug"),
+    account: Optional[str] = Query(None, description="Tài khoản sở hữu"),
+    slug: Optional[str] = Query(None, description="Slug notebook")
+):
+    """Delete a local notebook draft."""
+    deleted = monitor_service.delete_draft(ref=ref or "", account=account or "", slug=slug or "")
+    return {
+        "success": True,
+        "deleted": deleted,
+        "message": "Đã xóa bản nháp thành công." if deleted else "Không tìm thấy bản nháp để xóa."
+    }
+
+@app.get("/api/runner/drafts")
+def list_notebook_drafts():
+    """List all saved local drafts."""
+    drafts = monitor_service.list_drafts()
+    return {"success": True, "drafts": drafts}
 
 @app.post("/api/runner/share-notebook-datasets")
 def share_notebook_datasets_api(req: NotebookShareDatasetsRequest):

@@ -65,6 +65,7 @@ CRED_DIR = os.path.join(BASE_DIR, "Credentials")
 CACHE_FILE = os.path.join(BASE_DIR, "data_cache.json")
 QUOTA_FILE = os.path.join(BASE_DIR, "quota_data.json")
 HISTORY_FILE = os.path.join(BASE_DIR, "training_history.json")
+DRAFTS_FILE = os.path.join(BASE_DIR, "notebook_drafts.json")
 
 kaggle_api_lock = threading.Lock()
 
@@ -2759,6 +2760,10 @@ class KaggleMonitorService:
                         "auto_shared": auto_shared_notes,
                     }
                     self.append_training_history(hist_entry)
+                    try:
+                        self.delete_draft(full_slug)
+                    except Exception as _e_draft:
+                        logger.debug("Could not auto-delete draft for %s: %s", full_slug, _e_draft)
 
                     return {
                         "success": True,
@@ -4142,5 +4147,125 @@ class KaggleMonitorService:
                     json.dump(history, f, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.warning("Could not update training history status for %s: %s", kernel_ref, e)
+
+    def _read_all_drafts(self) -> dict:
+        """Internal helper to load drafts map from DRAFTS_FILE."""
+        if not os.path.exists(DRAFTS_FILE):
+            return {}
+        try:
+            with open(DRAFTS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _write_all_drafts(self, drafts: dict) -> bool:
+        """Internal helper to write drafts map to DRAFTS_FILE."""
+        try:
+            with open(DRAFTS_FILE, "w", encoding="utf-8") as f:
+                json.dump(drafts, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            logger.warning("Could not save drafts: %s", e)
+            return False
+
+    def get_draft(self, ref: str = "", account: str = "", slug: str = "") -> Optional[dict]:
+        """Get local draft for a notebook ref or (account, slug)."""
+        ref_norm = str(ref or "").strip().lower()
+        if not ref_norm and account and slug:
+            ref_norm = f"{str(account).strip().lower()}/{str(slug).strip().lower()}"
+        if not ref_norm:
+            return None
+
+        drafts = self._read_all_drafts()
+        draft = drafts.get(ref_norm)
+        if not draft:
+            target_slug = str(slug or (ref.split("/", 1)[1] if "/" in ref else "")).strip().lower()
+            if target_slug:
+                for k, v in drafts.items():
+                    if str(v.get("slug") or "").strip().lower() == target_slug:
+                        draft = v
+                        break
+        if draft:
+            draft_copy = dict(draft)
+            if draft_copy.get("updated_at"):
+                draft_copy["updated_at_human"] = time_ago(draft_copy["updated_at"])
+            return draft_copy
+        return None
+
+    def save_draft(self, data: dict) -> dict:
+        """Save notebook draft locally without pushing to Kaggle or creating versions."""
+        account = str(data.get("target_account") or data.get("account") or "").strip()
+        slug = str(data.get("slug") or "").strip()
+        ref = str(data.get("ref") or "").strip()
+        if not ref and account and slug:
+            ref = f"{account}/{slug}"
+        if not ref:
+            raise ValueError("Không xác định được ref hoặc account/slug cho bản nháp")
+
+        ref_norm = ref.strip().lower()
+        now_dt = datetime.now(timezone.utc)
+        record = {
+            "ref": ref,
+            "account": account,
+            "slug": slug,
+            "title": str(data.get("title") or slug).strip(),
+            "source_code": data.get("source_code", ""),
+            "machine_shape": data.get("machine_shape") or "NvidiaTeslaT4",
+            "enable_internet": bool(data.get("enable_internet", True)),
+            "is_private": bool(data.get("is_private", True)),
+            "dataset_sources": list(data.get("dataset_sources") or []),
+            "kernel_sources": list(data.get("kernel_sources") or []),
+            "competition_sources": list(data.get("competition_sources") or []),
+            "model_sources": list(data.get("model_sources") or []),
+            "is_notebook": bool(data.get("is_notebook", True)),
+            "language": str(data.get("language") or "python"),
+            "updated_at": now_dt.isoformat(),
+            "updated_at_human": "Vừa xong"
+        }
+
+        drafts = self._read_all_drafts()
+        drafts[ref_norm] = record
+        self._write_all_drafts(drafts)
+        logger.info("Local draft saved for %s (0%% GPU, 0 Kaggle version created)", ref)
+        return record
+
+    def delete_draft(self, ref: str = "", account: str = "", slug: str = "") -> bool:
+        """Delete a local draft."""
+        ref_norm = str(ref or "").strip().lower()
+        if not ref_norm and account and slug:
+            ref_norm = f"{str(account).strip().lower()}/{str(slug).strip().lower()}"
+        if not ref_norm:
+            return False
+
+        drafts = self._read_all_drafts()
+        deleted = False
+        if ref_norm in drafts:
+            del drafts[ref_norm]
+            deleted = True
+        else:
+            target_slug = str(slug or (ref.split("/", 1)[1] if "/" in ref else "")).strip().lower()
+            if target_slug:
+                to_del = [k for k, v in drafts.items() if str(v.get("slug") or "").strip().lower() == target_slug]
+                for k in to_del:
+                    del drafts[k]
+                    deleted = True
+
+        if deleted:
+            self._write_all_drafts(drafts)
+            logger.info("Local draft deleted for %s", ref_norm)
+        return deleted
+
+    def list_drafts(self) -> list:
+        """List all stored local drafts with human-readable timestamps."""
+        drafts = self._read_all_drafts()
+        result = []
+        for d in drafts.values():
+            d_copy = dict(d)
+            if d_copy.get("updated_at"):
+                d_copy["updated_at_human"] = time_ago(d_copy["updated_at"])
+            result.append(d_copy)
+        result.sort(key=lambda x: str(x.get("updated_at") or ""), reverse=True)
+        return result
 
 monitor_service = KaggleMonitorService()
