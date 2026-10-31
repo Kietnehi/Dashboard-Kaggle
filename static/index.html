@@ -1058,16 +1058,16 @@
                   <span class="w-4 h-4 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold">3</span>
                   Phần Cứng & Môi Trường
                 </label>
-                <span id="trainerHardwareLockBadge" class="hidden text-[10px] text-amber-700 font-semibold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                  <i data-lucide="lock" class="w-3 h-3"></i> Quick Save (Không chạy GPU)
+                <span id="trainerHardwareLockBadge" class="hidden text-[10px] text-indigo-700 font-semibold flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                  <i data-lucide="info" class="w-3 h-3"></i> Tùy chọn khi Chạy GPU
                 </span>
               </div>
 
-              <!-- Notice when editing: Quick Save only -->
-              <div id="editModeHardwareNotice" class="hidden mb-3 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2 shadow-2xs">
-                <i data-lucide="info" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+              <!-- Notice when editing: Quick Save vs Run GPU -->
+              <div id="editModeHardwareNotice" class="hidden mb-3 p-3 bg-indigo-50/80 border border-indigo-200 rounded-xl text-xs text-indigo-900 flex items-start gap-2 shadow-2xs">
+                <i data-lucide="info" class="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5"></i>
                 <div class="text-[11px] leading-relaxed">
-                  <strong>Chế độ sửa notebook:</strong> Khi bạn bấm <strong>"Lưu Phiên Bản"</strong>, hệ thống sẽ thực hiện <strong>Quick Save</strong> để ghi nhận mã nguồn và input mới lên Kaggle mà <strong>không khởi động container GPU</strong>, hoàn toàn không tốn hạn ngạch 30h/tuần.
+                  <strong>Chế độ sửa notebook:</strong> Bạn có 2 lựa chọn: Bấm <strong>"💾 Chỉ Lưu (Quick Save)"</strong> để lưu code & input lên Kaggle mà <strong>không chạy</strong> (0% GPU). Hoặc nếu sửa xong muốn chạy luôn, chọn GPU rồi bấm <strong>"🚀 Lưu & Chạy GPU"</strong>.
                 </div>
               </div>
 
@@ -1187,11 +1187,11 @@
                   <button type="button" onclick="openNotebookShareModal()" class="px-3 py-2 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer" title="Cấu hình quyền riêng tư và chia sẻ cộng tác viên">
                     <i data-lucide="share-2" class="w-3.5 h-3.5 text-purple-600"></i> Quản Lý Chia Sẻ
                   </button>
-                  <button type="button" id="btnSubmitSaveOnly" onclick="submitRunNotebook('save_only')" class="px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer" title="Chỉ lưu và commit phiên bản mới lên Kaggle (Quick Save, không chạy bất kỳ phần cứng nào, 0% GPU)">
+                  <button type="button" id="btnSubmitSaveOnly" onclick="submitRunNotebook('save_only')" class="px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer" title="Chỉ lưu mã nguồn và input lên Kaggle (Quick Save), không chạy bất kỳ phần cứng nào, 0% GPU">
                     <i data-lucide="save" class="w-4 h-4 text-indigo-600"></i>
-                    <span id="textSubmitSaveOnly">💾 Lưu Phiên Bản (Không Chạy GPU)</span>
+                    <span id="textSubmitSaveOnly">💾 Chỉ Lưu (Quick Save - 0% GPU)</span>
                   </button>
-                  <button type="button" id="btnSubmitRun" onclick="submitRunNotebook('gpu')" class="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 rounded-xl flex items-center gap-2 transition-all shadow-md hover:shadow-purple-500/30 disabled:opacity-50 cursor-pointer">
+                  <button type="button" id="btnSubmitRun" onclick="submitRunNotebook('gpu')" class="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:via-indigo-700 hover:to-purple-800 rounded-xl flex items-center gap-2 transition-all shadow-md hover:shadow-purple-500/30 disabled:opacity-50 cursor-pointer" title="Lưu mã nguồn và bắt đầu phiên chạy huấn luyện ngay trên máy chủ Kaggle (GPU)">
                     <i data-lucide="play" class="w-4 h-4 fill-current"></i>
                     <span id="textSubmitRun">🚀 1-Click: Lưu & Huấn Luyện GPU</span>
                   </button>
@@ -5968,13 +5968,17 @@
         const hwGrid = document.getElementById('trainerHardwareGrid');
         if (hwGrid) hwGrid.classList.remove('opacity-60', 'pointer-events-none');
         const btnRun = document.getElementById('btnSubmitRun');
-        if (btnRun) btnRun.classList.remove('hidden');
+        const textRun = document.getElementById('textSubmitRun');
+        if (btnRun) {
+          btnRun.classList.remove('hidden');
+          if (textRun) textRun.innerHTML = '🚀 1-Click: Lưu & Huấn Luyện GPU';
+        }
         const btnSave = document.getElementById('btnSubmitSaveOnly');
         const textSave = document.getElementById('textSubmitSaveOnly');
-        if (textSave) textSave.innerHTML = '💾 Lưu Phiên Bản (Không Chạy GPU)';
+        if (textSave) textSave.innerHTML = '💾 Chỉ Lưu (Quick Save - 0% GPU)';
         if (btnSave) {
           btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
-          btnSave.title = 'Chỉ lưu và commit phiên bản mới lên Kaggle (Quick Save, không chạy bất kỳ phần cứng nào, 0% GPU)';
+          btnSave.title = 'Chỉ lưu mã nguồn và input lên Kaggle (Quick Save, không chạy bất kỳ phần cứng nào, 0% GPU)';
         }
       }
 
@@ -6121,29 +6125,34 @@
       const titleLock = document.getElementById('trainerTitleLockBadge');
       if (titleLock) titleLock.classList.remove('hidden');
 
-      // 4. Lock Hardware & Display Quick Save Notice
+      // 4. Hardware Notice (Quick Save vs Run GPU)
       const hwNotice = document.getElementById('editModeHardwareNotice');
       if (hwNotice) hwNotice.classList.remove('hidden');
       const hwLock = document.getElementById('trainerHardwareLockBadge');
       if (hwLock) hwLock.classList.remove('hidden');
       const hwGrid = document.getElementById('trainerHardwareGrid');
-      if (hwGrid) hwGrid.classList.add('opacity-60', 'pointer-events-none');
+      if (hwGrid) hwGrid.classList.remove('opacity-60', 'pointer-events-none');
 
-      // 5. Update Action Buttons: Hide Run Button completely in Edit Mode, only allow Save Code & Input
+      // 5. Update Action Buttons: BOTH buttons are available in Edit Mode!
       const btnRun = document.getElementById('btnSubmitRun');
-      if (btnRun) btnRun.classList.add('hidden');
+      const textRun = document.getElementById('textSubmitRun');
+      if (btnRun) {
+        btnRun.classList.remove('hidden');
+        if (textRun) textRun.innerHTML = '🚀 Lưu & Chạy GPU';
+        btnRun.title = 'Lưu mã nguồn vừa sửa và kích hoạt phiên huấn luyện ngay trên GPU';
+      }
 
       const btnSave = document.getElementById('btnSubmitSaveOnly');
       const textSave = document.getElementById('textSubmitSaveOnly');
-      if (textSave) textSave.innerHTML = '💾 Lưu Code & Input (Quick Save - 0% GPU)';
+      if (textSave) textSave.innerHTML = '💾 Chỉ Lưu (Quick Save - 0% GPU)';
       if (btnSave) {
-        btnSave.className = 'px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl flex items-center gap-2 transition-all shadow-md cursor-pointer';
+        btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
         btnSave.title = 'Chỉ lưu mã nguồn và input lên Kaggle (Quick Save), tuyệt đối không chạy cell nào, 0% GPU';
       }
 
       const summary = document.getElementById('runnerStatusSummary');
       if (summary) {
-        summary.innerHTML = `✏️ Đang sửa <strong class="text-indigo-700">${ref}</strong> (Chỉ lưu code & input)`;
+        summary.innerHTML = `✏️ Đang sửa <strong class="text-indigo-700">${ref}</strong> (Bấm "Chỉ Lưu" hoặc "Lưu & Chạy GPU")`;
       }
 
       lucide.createIcons();
@@ -6965,22 +6974,17 @@
       } finally {
         if (btnRun) {
           btnRun.disabled = false;
+          btnRun.classList.remove('hidden');
           if (isEditingExistingNotebook) {
-            btnRun.classList.add('hidden');
+            btnRun.innerHTML = '<i data-lucide="play" class="w-4 h-4 fill-current"></i><span>🚀 Lưu & Chạy GPU</span>';
           } else {
-            btnRun.classList.remove('hidden');
             btnRun.innerHTML = '<i data-lucide="play" class="w-4 h-4 fill-current"></i><span>🚀 1-Click: Lưu & Huấn Luyện GPU</span>';
           }
         }
         if (btnSave) {
           btnSave.disabled = false;
-          if (isEditingExistingNotebook) {
-            btnSave.className = 'px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl flex items-center gap-2 transition-all shadow-md cursor-pointer';
-            btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-white"></i><span id="textSubmitSaveOnly">💾 Lưu Code & Input (Quick Save - 0% GPU)</span>';
-          } else {
-            btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
-            btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-indigo-600"></i><span id="textSubmitSaveOnly">💾 Lưu Phiên Bản (Không Chạy GPU)</span>';
-          }
+          btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
+          btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-indigo-600"></i><span id="textSubmitSaveOnly">💾 Chỉ Lưu (Quick Save - 0% GPU)</span>';
         }
         lucide.createIcons();
       }
