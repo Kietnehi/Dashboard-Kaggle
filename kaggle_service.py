@@ -2702,16 +2702,18 @@ class KaggleMonitorService:
 
                     if save_only:
                         logger.info("Notebook %s successfully saved as version %s (QUICK_SAVE - no execution)", full_slug, v_num)
-                        # Update cached kernel info if present
+                        # Update cached kernel version without setting lastRunTime (since no execution occurred)
+                        now_iso = datetime.now(timezone.utc).isoformat()
                         for k in self.data.get("all_kernels", []):
                             if str(k.get("ref", "")).lower() == full_slug.lower():
                                 k["totalVersions"] = v_num
-                                k["lastRunTime"] = datetime.now(timezone.utc).isoformat()
+                                k["version_number"] = v_num
+                                k["last_saved_time"] = now_iso
                         self.save_cache()
                         return {
                             "success": True,
                             "saved_only": True,
-                            "message": f"Đã lưu thành công phiên bản mới (v{v_num}) lên Kaggle (Quick Save - không chạy)",
+                            "message": f"Đã lưu thành công code & input lên Kaggle (Quick Save v{v_num} - Tuyệt đối không chạy, 0% GPU)",
                             "ref": full_slug,
                             "account": target_account,
                             "url": kernel_url,

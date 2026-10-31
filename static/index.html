@@ -1260,9 +1260,9 @@
             <div id="activeRunControls" class="hidden pt-3 border-t border-slate-100">
               <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 <!-- 1. Edit & New Version -->
-                <button id="btnActiveEditVersion" onclick="editActiveRunVersion()" class="w-full px-2.5 py-2 text-xs font-bold text-indigo-700 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs" title="Chỉnh sửa mã nguồn và tạo phiên bản tiếp theo">
+                <button id="btnActiveEditVersion" onclick="editActiveRunVersion()" class="w-full px-2.5 py-2 text-xs font-bold text-indigo-700 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs" title="Chỉnh sửa mã nguồn và cấu hình notebook">
                   <i data-lucide="edit-3" class="w-3.5 h-3.5 text-indigo-600"></i>
-                  <span class="truncate">Sửa & Chạy Tiếp</span>
+                  <span class="truncate">Sửa Notebook</span>
                 </button>
 
                 <!-- 2. Refresh log -->
@@ -1954,9 +1954,9 @@
             </select>
           </div>
 
-          <button id="btnInspectorEditVersion" onclick="editNotebookFromInspector()" class="px-2.5 py-1.5 text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 rounded-lg text-xs flex items-center gap-1.5 font-semibold shadow-sm cursor-pointer" title="Chỉnh sửa mã nguồn và tạo phiên bản tiếp theo (Version mới) dựa trên phiên bản này">
+          <button id="btnInspectorEditVersion" onclick="editNotebookFromInspector()" class="px-2.5 py-1.5 text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 rounded-lg text-xs flex items-center gap-1.5 font-semibold shadow-sm cursor-pointer" title="Chỉnh sửa mã nguồn và cấu hình notebook này trên Notebook Studio">
             <i data-lucide="edit-3" class="w-3.5 h-3.5 text-purple-600"></i>
-            <span>Sửa & Chạy Version Mới</span>
+            <span>Sửa Notebook (Studio)</span>
           </button>
 
           <button onclick="refreshInspectorDetails()" class="px-2.5 py-1.5 text-slate-700 bg-white border border-slate-200 hover:text-blue-600 hover:border-blue-300 rounded-lg text-xs flex items-center gap-1 font-medium shadow-sm cursor-pointer" title="Tải lại chi tiết mới nhất">
@@ -3025,8 +3025,8 @@
             ${renderStatusBadge(k.status, k.failure_message)}
           </td>
           <td class="py-3 px-4 text-right space-x-1">
-            <button onclick="quickEditNotebook('${k.account}', '${k.ref}')" class="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md shadow-xs inline-flex items-center gap-1 cursor-pointer" title="Chỉnh sửa mã nguồn & tạo phiên bản tiếp theo">
-              <i data-lucide="edit-3" class="w-3 h-3 text-indigo-600"></i> Sửa & Chạy
+            <button onclick="quickEditNotebook('${k.account}', '${k.ref}')" class="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md shadow-xs inline-flex items-center gap-1 cursor-pointer" title="Chỉnh sửa mã nguồn & input data">
+              <i data-lucide="edit-3" class="w-3 h-3 text-indigo-600"></i> Sửa Notebook
             </button>
             <button onclick="quickTrainNotebook('${k.account}', '${k.ref}')" class="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-md shadow-xs inline-flex items-center gap-1 cursor-pointer" title="Chạy notebook này trên tài khoản có GPU">
               <i data-lucide="zap" class="w-3 h-3 text-purple-600"></i> Huấn luyện GPU
@@ -5553,8 +5553,8 @@
                 </div>
               </div>
               <div class="flex items-center gap-1.5 flex-shrink-0">
-                <button type="button" onclick="quickEditNotebook('${item.account}', '${item.ref}');" class="px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors flex items-center gap-1 cursor-pointer" title="Chỉnh sửa mã nguồn và tạo phiên bản mới tiếp theo">
-                  <i data-lucide="edit-3" class="w-3 h-3 text-indigo-600"></i> Sửa & Chạy
+                <button type="button" onclick="quickEditNotebook('${item.account}', '${item.ref}');" class="px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 rounded hover:bg-indigo-100 transition-colors flex items-center gap-1 cursor-pointer" title="Chỉnh sửa mã nguồn và cấu hình notebook này">
+                  <i data-lucide="edit-3" class="w-3 h-3 text-indigo-600"></i> Sửa Notebook
                 </button>
                 <button type="button" onclick="switchToNotebookConsole('${item.account}', '${item.ref}', '${(item.title || item.ref).replace(/'/g, "\\'")}'); document.getElementById('trainerConsoleWrapper').scrollIntoView({behavior:'smooth'});" class="px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors flex items-center gap-1 cursor-pointer" title="Xem log của notebook này trên Console Live Output">
                   <i data-lucide="terminal" class="w-3 h-3 text-emerald-600"></i> Xem Log
@@ -5967,11 +5967,14 @@
         if (hwLock) hwLock.classList.add('hidden');
         const hwGrid = document.getElementById('trainerHardwareGrid');
         if (hwGrid) hwGrid.classList.remove('opacity-60', 'pointer-events-none');
+        const btnRun = document.getElementById('btnSubmitRun');
+        if (btnRun) btnRun.classList.remove('hidden');
         const btnSave = document.getElementById('btnSubmitSaveOnly');
         const textSave = document.getElementById('textSubmitSaveOnly');
         if (textSave) textSave.innerHTML = '💾 Lưu Phiên Bản (Không Chạy GPU)';
         if (btnSave) {
-          btnSave.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-100');
+          btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
+          btnSave.title = 'Chỉ lưu và commit phiên bản mới lên Kaggle (Quick Save, không chạy bất kỳ phần cứng nào, 0% GPU)';
         }
       }
 
@@ -6126,13 +6129,16 @@
       const hwGrid = document.getElementById('trainerHardwareGrid');
       if (hwGrid) hwGrid.classList.add('opacity-60', 'pointer-events-none');
 
-      // 5. Update Action Buttons
+      // 5. Update Action Buttons: Hide Run Button completely in Edit Mode, only allow Save Code & Input
+      const btnRun = document.getElementById('btnSubmitRun');
+      if (btnRun) btnRun.classList.add('hidden');
+
       const btnSave = document.getElementById('btnSubmitSaveOnly');
       const textSave = document.getElementById('textSubmitSaveOnly');
-      if (textSave) textSave.innerHTML = '💾 Lưu Phiên Bản (Quick Save - Không Chạy)';
+      if (textSave) textSave.innerHTML = '💾 Lưu Code & Input (Quick Save - 0% GPU)';
       if (btnSave) {
-        btnSave.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-100');
-        btnSave.title = 'Lưu và ghi nhận phiên bản mới (Quick Save) lên Kaggle mà không chạy, không tốn GPU';
+        btnSave.className = 'px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl flex items-center gap-2 transition-all shadow-md cursor-pointer';
+        btnSave.title = 'Chỉ lưu mã nguồn và input lên Kaggle (Quick Save), tuyệt đối không chạy cell nào, 0% GPU';
       }
 
       const summary = document.getElementById('runnerStatusSummary');
@@ -6899,7 +6905,7 @@
         // If in save_only mode: Only save/commit notebook on Kaggle, do NOT execute or stream console
         if (mode === 'save_only' || data.saved_only) {
           const vNum = data.version_number || '';
-          showToast(`💾 Đã lưu phiên bản mới (v${vNum}) lên Kaggle thành công! (Quick Save - Không chạy và không tốn GPU)`, 'success');
+          showToast(`💾 Đã lưu code & input lên Kaggle thành công! (Quick Save v${vNum} - Tuyệt đối không chạy, 0% GPU)`, 'success');
 
           if (studioTargetVersionInfo) {
             studioTargetVersionInfo.loadedVersion = data.version_number;
@@ -6912,7 +6918,7 @@
           }
           const summary = document.getElementById('runnerStatusSummary');
           if (summary) {
-            summary.innerHTML = `✅ Đã lưu phiên bản <strong class="text-indigo-700">v${vNum}</strong> lên Kaggle (Quick Save - 0% GPU)`;
+            summary.innerHTML = `✅ Đã lưu code & input lên Kaggle (Quick Save <strong class="text-indigo-700">v${vNum}</strong> - 0% GPU, không chạy code)`;
           }
 
           if (notebookLink) {
@@ -6959,13 +6965,20 @@
       } finally {
         if (btnRun) {
           btnRun.disabled = false;
-          btnRun.innerHTML = '<i data-lucide="play" class="w-4 h-4 fill-current"></i><span>🚀 1-Click: Lưu & Huấn Luyện GPU</span>';
+          if (isEditingExistingNotebook) {
+            btnRun.classList.add('hidden');
+          } else {
+            btnRun.classList.remove('hidden');
+            btnRun.innerHTML = '<i data-lucide="play" class="w-4 h-4 fill-current"></i><span>🚀 1-Click: Lưu & Huấn Luyện GPU</span>';
+          }
         }
         if (btnSave) {
           btnSave.disabled = false;
           if (isEditingExistingNotebook) {
-            btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-indigo-600"></i><span id="textSubmitSaveOnly">💾 Lưu Phiên Bản (Quick Save - Không Chạy)</span>';
+            btnSave.className = 'px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl flex items-center gap-2 transition-all shadow-md cursor-pointer';
+            btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-white"></i><span id="textSubmitSaveOnly">💾 Lưu Code & Input (Quick Save - 0% GPU)</span>';
           } else {
+            btnSave.className = 'px-4 py-2.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer';
             btnSave.innerHTML = '<i data-lucide="save" class="w-4 h-4 text-indigo-600"></i><span id="textSubmitSaveOnly">💾 Lưu Phiên Bản (Không Chạy GPU)</span>';
           }
         }
