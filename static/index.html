@@ -71,6 +71,73 @@
     #toastContainer {
       z-index: 100 !important;
     }
+    /* Notebook Studio Fullscreen / Focus IDE Mode */
+    .studio-fullscreen-active {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 75 !important;
+      background-color: rgba(15, 23, 42, 0.75) !important;
+      backdrop-filter: blur(8px) !important;
+      padding: 1rem !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin: 0 !important;
+      border: none !important;
+    }
+    .studio-fullscreen-active #studioMainBox {
+      width: 100% !important;
+      max-width: 92rem !important;
+      height: 94vh !important;
+      max-height: 94vh !important;
+      background-color: #F8FAFC !important;
+      border: 1px solid #CBD5E1 !important;
+      border-radius: 1rem !important;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35) !important;
+      display: flex !important;
+      flex-direction: column !important;
+      overflow: hidden !important;
+    }
+    .studio-fullscreen-active #studioTopHeaderBar {
+      padding: 0.85rem 1.25rem !important;
+      background-color: #FFFFFF !important;
+      border-bottom: 1px solid #E2E8F0 !important;
+      flex-shrink: 0 !important;
+    }
+    .studio-fullscreen-active #trainerStudioCellsContainer {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      padding: 1rem !important;
+      overflow: hidden !important;
+    }
+    .studio-fullscreen-active #trainerStudioCellsList {
+      max-height: none !important;
+      flex: 1 1 0% !important;
+      height: 100% !important;
+      overflow-y: auto !important;
+      padding-right: 0.5rem !important;
+    }
+    .studio-fullscreen-active #trainerStudioRawContainer {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      padding: 1rem !important;
+      overflow: hidden !important;
+    }
+    .studio-fullscreen-active #trainerRawSourceTextarea {
+      flex: 1 1 0% !important;
+      min-height: 0 !important;
+      height: 100% !important;
+      resize: none !important;
+    }
+    .studio-fullscreen-active #studioFullscreenActionsBar {
+      display: flex !important;
+      flex-shrink: 0 !important;
+    }
     .animate-spin-custom {
       animation: spin 1s linear infinite;
     }
@@ -942,62 +1009,95 @@
             </div>
 
             <!-- Step: Notebook Studio (Soạn thảo, Thêm/Sửa/Xóa Cells & Raw Script) -->
-            <div id="trainerNotebookStudioSection" class="pt-3 border-t border-slate-100">
-              <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <label class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <span class="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">★</span>
-                    <span>Notebook Studio: Chỉnh Sửa & Quản Lý Phiên Bản</span>
-                  </label>
-                  <span id="studioCellsCountBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">0 cells</span>
-                  <span id="studioVersionTargetBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
-                    <i data-lucide="git-branch" class="w-3 h-3 text-purple-600"></i>
-                    <span id="studioVersionTargetText">Phiên bản: Mới</span>
-                  </span>
-                  <span id="studioDraftBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1" title="Bản nháp đang được lưu an toàn trên Dashboard">
-                    <i data-lucide="file-edit" class="w-3 h-3 text-amber-600"></i>
-                    <span id="studioDraftText">Bản Nháp (Chưa đẩy lên Kaggle)</span>
-                  </span>
-                </div>
+            <div id="trainerNotebookStudioSection" class="pt-3 border-t border-slate-100 transition-all">
+              <div id="studioMainBox" class="flex flex-col transition-all">
+                <div id="studioTopHeaderBar" class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <label class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <span class="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">★</span>
+                      <span>Notebook Studio: Chỉnh Sửa & Quản Lý Phiên Bản</span>
+                    </label>
+                    <span id="studioCellsCountBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">0 cells</span>
+                    <span id="studioVersionTargetBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                      <i data-lucide="git-branch" class="w-3 h-3 text-purple-600"></i>
+                      <span id="studioVersionTargetText">Phiên bản: Mới</span>
+                    </span>
+                    <span id="studioDraftBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1" title="Bản nháp đang được lưu an toàn trên Dashboard">
+                      <i data-lucide="file-edit" class="w-3 h-3 text-amber-600"></i>
+                      <span id="studioDraftText">Bản Nháp (Chưa đẩy lên Kaggle)</span>
+                    </span>
+                  </div>
 
-                <div class="flex items-center gap-1.5 flex-wrap">
-                  <button type="button" id="btnStudioAddCodeCell" onclick="addStudioCell('code')" class="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Thêm một ô code Python mới">
-                    <i data-lucide="plus" class="w-3 h-3 text-indigo-600"></i> + Ô Code
-                  </button>
-                  <button type="button" id="btnStudioAddMdCell" onclick="addStudioCell('markdown')" class="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Thêm ô ghi chú Markdown">
-                    <i data-lucide="file-text" class="w-3 h-3 text-slate-600"></i> + Ô Markdown
-                  </button>
-                  <button type="button" id="btnStudioImportNotebook" onclick="openImportNotebookModal()" class="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Ghép hoặc chèn các ô cells từ file .ipynb trên máy hoặc notebook Kaggle khác vào đây">
-                    <i data-lucide="folder-input" class="w-3 h-3 text-emerald-600"></i> + Ghép Notebook Khác
-                  </button>
-                  <button type="button" id="btnStudioDownloadNotebook" onclick="downloadStudioNotebook()" class="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Tải toàn bộ nội dung notebook hiện tại về máy (.ipynb)">
-                    <i data-lucide="download" class="w-3 h-3 text-blue-600"></i> Tải .ipynb
-                  </button>
-                  <button type="button" id="btnStudioToggleCollapseAll" onclick="toggleAllStudioCells()" class="px-2 py-1 text-xs text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg flex items-center gap-1 cursor-pointer" title="Thu gọn hoặc mở rộng toàn bộ các ô cell">
-                    <i data-lucide="chevrons-up-down" class="w-3 h-3"></i>
-                  </button>
-                  <button type="button" id="btnStudioToggleViewMode" onclick="toggleStudioViewMode()" class="px-2.5 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Chuyển đổi giữa giao diện từng ô Cell và toàn văn Raw Script">
-                    <i data-lucide="code" class="w-3 h-3 text-purple-600"></i> <span id="studioViewModeLabel">Chế độ Raw Script</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Interactive Cells View Container -->
-              <div id="trainerStudioCellsContainer" class="space-y-2.5">
-                <div id="trainerStudioCellsList" class="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
-                  <div class="p-6 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                    <i data-lucide="file-code" class="w-6 h-6 text-slate-300 mx-auto mb-1"></i>
-                    <span>Chưa có mã nguồn notebook. Chọn notebook từ Dự Án, Kéo Thả File hoặc bấm <strong>"+ Ô Code"</strong> để soạn thảo mới.</span>
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <button type="button" id="btnStudioAddCodeCell" onclick="addStudioCell('code')" class="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Thêm một ô code Python mới">
+                      <i data-lucide="plus" class="w-3 h-3 text-indigo-600"></i> + Ô Code
+                    </button>
+                    <button type="button" id="btnStudioAddMdCell" onclick="addStudioCell('markdown')" class="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Thêm ô ghi chú Markdown">
+                      <i data-lucide="file-text" class="w-3 h-3 text-slate-600"></i> + Ô Markdown
+                    </button>
+                    <button type="button" id="btnStudioImportNotebook" onclick="openImportNotebookModal()" class="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Ghép hoặc chèn các ô cells từ file .ipynb trên máy hoặc notebook Kaggle khác vào đây">
+                      <i data-lucide="folder-input" class="w-3 h-3 text-emerald-600"></i> + Ghép Notebook
+                    </button>
+                    <button type="button" id="btnStudioDownloadNotebook" onclick="downloadStudioNotebook()" class="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Tải toàn bộ nội dung notebook hiện tại về máy (.ipynb)">
+                      <i data-lucide="download" class="w-3 h-3 text-blue-600"></i> Tải .ipynb
+                    </button>
+                    <button type="button" id="btnStudioToggleCollapseAll" onclick="toggleAllStudioCells()" class="px-2 py-1 text-xs text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg flex items-center gap-1 cursor-pointer" title="Thu gọn hoặc mở rộng toàn bộ các ô cell">
+                      <i data-lucide="chevrons-up-down" class="w-3 h-3"></i>
+                    </button>
+                    <button type="button" id="btnStudioToggleViewMode" onclick="toggleStudioViewMode()" class="px-2.5 py-1 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer" title="Chuyển đổi giữa giao diện từng ô Cell và toàn văn Raw Script">
+                      <i data-lucide="code" class="w-3 h-3 text-purple-600"></i> <span id="studioViewModeLabel">Chế độ Raw Script</span>
+                    </button>
+                    <button type="button" id="btnStudioFullscreen" onclick="toggleStudioFullscreen()" class="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer" title="Mở rộng Notebook Studio toàn màn hình (Focus Mode - Thoải mái xem và sửa full notebook)">
+                      <i data-lucide="maximize-2" id="iconStudioFullscreen" class="w-3.5 h-3.5 text-indigo-600"></i>
+                      <span id="textStudioFullscreen">Toàn Màn Hình</span>
+                    </button>
                   </div>
                 </div>
-              </div>
 
-              <!-- Raw Script View Container (Hidden by default) -->
-              <div id="trainerStudioRawContainer" class="hidden space-y-2">
-                <div class="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                  <span>Soạn thảo Raw Script (Phân cách ô cell bằng cú pháp tiêu chuẩn <code class="bg-slate-100 text-purple-700 px-1 py-0.5 rounded font-mono font-bold"># %%</code> hoặc <code class="bg-slate-100 text-purple-700 px-1 py-0.5 rounded font-mono font-bold"># %% [markdown]</code>):</span>
+                <!-- Interactive Cells View Container -->
+                <div id="trainerStudioCellsContainer" class="space-y-2.5">
+                  <div id="trainerStudioCellsList" class="space-y-2.5 max-h-[620px] overflow-y-auto pr-1.5">
+                    <div class="p-6 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                      <i data-lucide="file-code" class="w-6 h-6 text-slate-300 mx-auto mb-1"></i>
+                      <span>Chưa có mã nguồn notebook. Chọn notebook từ Dự Án, Kéo Thả File hoặc bấm <strong>"+ Ô Code"</strong> để soạn thảo mới.</span>
+                    </div>
+                  </div>
                 </div>
-                <textarea id="trainerRawSourceTextarea" oninput="onTrainerRawSourceInput(this.value)" rows="14" placeholder="# Viết code Python hoặc dán notebook script tại đây...&#10;# %%&#10;import numpy as np&#10;print('Hello Kaggle')" class="w-full text-xs font-mono bg-slate-900 text-emerald-300 p-3.5 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 leading-relaxed shadow-inner"></textarea>
+
+                <!-- Raw Script View Container (Hidden by default) -->
+                <div id="trainerStudioRawContainer" class="hidden space-y-2">
+                  <div class="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                    <span>Soạn thảo Raw Script (Phân cách ô cell bằng cú pháp tiêu chuẩn <code class="bg-slate-100 text-purple-700 px-1 py-0.5 rounded font-mono font-bold"># %%</code> hoặc <code class="bg-slate-100 text-purple-700 px-1 py-0.5 rounded font-mono font-bold"># %% [markdown]</code>):</span>
+                  </div>
+                  <textarea id="trainerRawSourceTextarea" oninput="onTrainerRawSourceInput(this.value)" rows="22" placeholder="# Viết code Python hoặc dán notebook script tại đây...&#10;# %%&#10;import numpy as np&#10;print('Hello Kaggle')" class="w-full text-xs font-mono bg-slate-900 text-emerald-300 p-3.5 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 leading-relaxed shadow-inner"></textarea>
+                </div>
+
+                <!-- Sticky Action Bar in Fullscreen Mode (hidden in inline view) -->
+                <div id="studioFullscreenActionsBar" class="hidden p-3 bg-white border-t border-slate-200 items-center justify-between gap-3 flex-wrap">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500">Phím tắt:</span>
+                    <kbd class="px-1.5 py-0.5 text-[10px] font-mono bg-slate-100 text-slate-700 border border-slate-300 rounded shadow-2xs">ESC</kbd>
+                    <span class="text-xs text-slate-600">để thu nhỏ</span>
+                  </div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <button type="button" onclick="saveNotebookDraft()" class="px-3.5 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs">
+                      <i data-lucide="file-edit" class="w-3.5 h-3.5 text-amber-600"></i>
+                      <span>Lưu Bản Nháp (0% GPU)</span>
+                    </button>
+                    <button type="button" onclick="submitRunNotebook('save_only')" class="px-3.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs">
+                      <i data-lucide="save" class="w-3.5 h-3.5 text-indigo-600"></i>
+                      <span>Quick Save (Kaggle)</span>
+                    </button>
+                    <button type="button" onclick="submitRunNotebook('gpu')" class="px-4 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md">
+                      <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+                      <span>🚀 Lưu & Chạy GPU</span>
+                    </button>
+                    <button type="button" onclick="toggleStudioFullscreen()" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl flex items-center gap-1 cursor-pointer">
+                      <i data-lucide="x" class="w-3.5 h-3.5 text-slate-500"></i>
+                      <span>Đóng Toàn Màn Hình</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -5433,15 +5533,74 @@
       updateStudioBadges();
     }
 
+    let isStudioFullscreen = false;
+
+    function toggleStudioFullscreen() {
+      isStudioFullscreen = !isStudioFullscreen;
+      const studioSec = document.getElementById('trainerNotebookStudioSection');
+      const textFs = document.getElementById('textStudioFullscreen');
+      const iconFs = document.getElementById('iconStudioFullscreen');
+
+      if (!studioSec) return;
+
+      if (isStudioFullscreen) {
+        studioSec.classList.add('studio-fullscreen-active');
+        document.body.classList.add('overflow-hidden');
+        if (textFs) textFs.textContent = 'Thu Nhỏ (ESC)';
+        if (iconFs) iconFs.setAttribute('data-lucide', 'minimize-2');
+        showToast('⛶ Đã mở Notebook Studio toàn màn hình (Bấm ESC để thu nhỏ)', 'info');
+      } else {
+        studioSec.classList.remove('studio-fullscreen-active');
+        document.body.classList.remove('overflow-hidden');
+        if (textFs) textFs.textContent = 'Toàn Màn Hình';
+        if (iconFs) iconFs.setAttribute('data-lucide', 'maximize-2');
+      }
+      renderStudioCells();
+      lucide.createIcons();
+    }
+
+    // Keyboard listener for ESC to exit fullscreen
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isStudioFullscreen) {
+        toggleStudioFullscreen();
+      }
+    });
+
+    function duplicateStudioCell(idx) {
+      if (idx < 0 || idx >= studioCells.length) return;
+      const orig = studioCells[idx];
+      const copy = {
+        id: generateCellId(),
+        type: orig.type,
+        source: orig.source,
+        isCollapsed: orig.isCollapsed
+      };
+      studioCells.splice(idx + 1, 0, copy);
+      syncStudioToSourceCode();
+      renderStudioCells();
+      updateStudioBadges();
+      showToast(`Đã nhân bản ô #${idx + 1}!`, 'info');
+    }
+
+    function copyStudioCellContent(idx) {
+      if (idx < 0 || idx >= studioCells.length) return;
+      const text = studioCells[idx].source || '';
+      try {
+        navigator.clipboard.writeText(text);
+        showToast(`📋 Đã copy nội dung ô #${idx + 1} vào clipboard!`, 'info');
+      } catch (_) {}
+    }
+
     function renderStudioCells() {
       const container = document.getElementById('trainerStudioCellsList');
       if (!container) return;
 
       if (studioCells.length === 0) {
         container.innerHTML = `
-          <div class="p-6 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-            <i data-lucide="file-code" class="w-6 h-6 text-slate-300 mx-auto mb-1"></i>
-            <span>Chưa có mã nguồn notebook. Chọn notebook từ Dự Án, Kéo Thả File hoặc bấm <strong class="text-indigo-600 cursor-pointer" onclick="addStudioCell('code')">+ Ô Code</strong> để soạn thảo mới.</span>
+          <div class="p-8 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+            <i data-lucide="file-code" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
+            <span class="block text-sm font-medium text-slate-600 mb-1">Chưa có mã nguồn notebook</span>
+            <span class="text-xs text-slate-400">Chọn notebook từ Dự Án, Kéo Thả File hoặc bấm <strong class="text-indigo-600 cursor-pointer" onclick="addStudioCell('code')">+ Ô Code</strong> để soạn thảo mới.</span>
           </div>
         `;
         lucide.createIcons();
@@ -5457,13 +5616,14 @@
 
         const linesCount = (cell.source || '').split('\n').length;
         const previewText = cell.source ? cell.source.split('\n')[0].substring(0, 70) : '(Ô trống)';
+        const maxTextareaRows = isStudioFullscreen ? 36 : 22;
 
         return `
-          <div id="studio-cell-card-${idx}" class="bg-white border ${borderColor} rounded-xl shadow-2xs transition-all overflow-hidden">
+          <div id="studio-cell-card-${idx}" class="bg-white border ${borderColor} rounded-xl shadow-2xs hover:shadow-xs transition-all overflow-hidden">
             <!-- Cell Header Toolbar -->
-            <div class="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2 text-xs">
+            <div class="px-3.5 py-2 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between gap-2 text-xs">
               <div class="flex items-center gap-2 truncate">
-                <span class="font-bold text-slate-700 text-[11px] font-mono">#${idx + 1}</span>
+                <span class="font-bold text-slate-700 text-[11px] font-mono bg-slate-200/60 px-1.5 py-0.5 rounded">#${idx + 1}</span>
                 ${typeBadge}
                 <span class="text-[10px] text-slate-400 font-mono truncate max-w-xs">${linesCount} dòng</span>
                 ${cell.isCollapsed ? `<span class="text-[11px] text-slate-500 italic truncate max-w-sm ml-1 font-mono">${escapeHtml(previewText)}</span>` : ''}
@@ -5471,8 +5631,16 @@
 
               <div class="flex items-center gap-1 flex-shrink-0">
                 <!-- Change Type -->
-                <button type="button" onclick="updateStudioCellType(${idx}, '${isCode ? 'markdown' : 'code'}')" class="px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-600 hover:bg-slate-200 transition-colors" title="Đổi sang ${isCode ? 'Markdown' : 'Code'}">
+                <button type="button" onclick="updateStudioCellType(${idx}, '${isCode ? 'markdown' : 'code'}')" class="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors" title="Đổi sang ${isCode ? 'Markdown' : 'Code'}">
                   ${isCode ? 'Sang MD' : 'Sang Code'}
+                </button>
+                <!-- Copy Content -->
+                <button type="button" onclick="copyStudioCellContent(${idx})" class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer" title="Sao chép nội dung ô này">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                </button>
+                <!-- Duplicate -->
+                <button type="button" onclick="duplicateStudioCell(${idx})" class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer" title="Nhân bản ô này">
+                  <i data-lucide="copy-plus" class="w-3.5 h-3.5"></i>
                 </button>
                 <!-- Move Up -->
                 <button type="button" onclick="moveStudioCell(${idx}, -1)" ${idx === 0 ? 'disabled class="p-1 text-slate-300 cursor-not-allowed"' : 'class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer"'} title="Di chuyển lên trên">
@@ -5498,14 +5666,14 @@
             </div>
 
             <!-- Cell Body (Textarea) -->
-            <div class="${cell.isCollapsed ? 'hidden' : 'p-2.5 bg-slate-900/5'}">
+            <div class="${cell.isCollapsed ? 'hidden' : 'p-3 bg-slate-50/30'}">
               <textarea 
                 id="studio-cell-textarea-${idx}" 
                 oninput="updateStudioCellSource(${idx}, this.value)" 
                 onkeydown="handleStudioCellKeydown(event, this)"
-                rows="${Math.max(3, Math.min(16, linesCount + 1))}" 
+                rows="${Math.max(3, Math.min(maxTextareaRows, linesCount + 1))}" 
                 placeholder="${isCode ? '# Viết mã Python tại đây...' : '### Viết ghi chú Markdown tại đây...'}" 
-                class="w-full text-xs font-mono p-3 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed shadow-inner"
+                class="w-full text-xs font-mono p-3.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 leading-relaxed shadow-2xs resize-y transition-colors"
               >${escapeHtml(cell.source || '')}</textarea>
             </div>
           </div>
