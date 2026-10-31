@@ -143,6 +143,19 @@
     .studio-fullscreen-active .hidden {
       display: none !important;
     }
+    /* Markdown Cells Typography */
+    .prose h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #0f172a; }
+    .prose h2 { font-size: 1.25rem; font-weight: 700; margin-top: 0.75rem; margin-bottom: 0.5rem; color: #1e293b; }
+    .prose h3 { font-size: 1.1rem; font-weight: 600; margin-top: 0.5rem; margin-bottom: 0.35rem; color: #334155; }
+    .prose p { margin-bottom: 0.5rem; line-height: 1.6; }
+    .prose ul, .prose ol { padding-left: 1.25rem; margin-bottom: 0.5rem; list-style-type: disc; }
+    .prose ol { list-style-type: decimal; }
+    .prose li { margin-bottom: 0.25rem; }
+    .prose code { background: #f1f5f9; color: #7c3aed; padding: 0.15rem 0.35rem; border-radius: 0.25rem; font-family: monospace; font-size: 0.85em; }
+    .prose pre { background: #0f172a; color: #e2e8f0; padding: 0.75rem 1rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 0.75rem; }
+    .prose pre code { background: transparent; color: inherit; padding: 0; }
+    .prose blockquote { border-left: 3px solid #cbd5e1; padding-left: 0.75rem; color: #64748b; font-style: italic; }
+    .prose a { color: #6366f1; text-decoration: underline; }
     .animate-spin-custom {
       animation: spin 1s linear infinite;
     }
@@ -5627,6 +5640,41 @@
       showToast(`Đã nhân bản ô #${idx + 1}!`, 'info');
     }
 
+    let studioEditorTheme = 'dark';
+    try {
+      const saved = localStorage.getItem('studio_theme');
+      if (saved) studioEditorTheme = saved;
+    } catch (_) {}
+
+    function toggleStudioEditorTheme() {
+      studioEditorTheme = (studioEditorTheme === 'dark') ? 'light' : 'dark';
+      try { localStorage.setItem('studio_theme', studioEditorTheme); } catch (_) {}
+      const label = document.getElementById('studioThemeLabel');
+      const icon = document.getElementById('iconStudioTheme');
+      if (label) label.innerText = (studioEditorTheme === 'dark') ? 'Dark IDE' : 'Light';
+      if (icon) {
+        icon.setAttribute('data-lucide', (studioEditorTheme === 'dark') ? 'moon' : 'sun');
+        icon.className = (studioEditorTheme === 'dark') ? 'w-3 h-3 text-indigo-500' : 'w-3 h-3 text-amber-500';
+      }
+      renderStudioCells();
+      lucide.createIcons();
+      showToast(`Đã chuyển theme code sang ${studioEditorTheme === 'dark' ? 'Dark IDE' : 'Light Mode'}`, 'info');
+    }
+
+    function toggleStudioMarkdownPreview(idx) {
+      if (idx < 0 || idx >= studioCells.length) return;
+      studioCells[idx].showPreview = (studioCells[idx].showPreview === false);
+      renderStudioCells();
+    }
+
+    function syncStudioGutterScroll(idx) {
+      const ta = document.getElementById(`studio-cell-textarea-${idx}`);
+      const gutter = document.getElementById(`studio-gutter-${idx}`);
+      if (ta && gutter) {
+        gutter.scrollTop = ta.scrollTop;
+      }
+    }
+
     function copyStudioCellContent(idx) {
       if (idx < 0 || idx >= studioCells.length) return;
       const text = studioCells[idx].source || '';
@@ -5652,75 +5700,131 @@
         return;
       }
 
+      const isDark = (studioEditorTheme === 'dark');
+
       container.innerHTML = studioCells.map((cell, idx) => {
         const isCode = (cell.type === 'code');
-        const borderColor = isCode ? 'border-slate-200 hover:border-indigo-300' : 'border-amber-200 hover:border-amber-300';
+        const borderColor = isCode 
+          ? 'border-l-4 border-l-indigo-500 border-slate-200/90 hover:border-indigo-400' 
+          : 'border-l-4 border-l-amber-500 border-slate-200/90 hover:border-amber-400';
+        const promptBadge = isCode
+          ? `<span class="inline-flex items-center font-mono text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/80 shadow-2xs">In [${idx + 1}]:</span>`
+          : `<span class="inline-flex items-center font-mono text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-300 shadow-2xs">MD [${idx + 1}]:</span>`;
+
         const typeBadge = isCode
-          ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">CODE</span>'
-          : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 font-mono">MARKDOWN</span>';
+          ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-100 font-mono shadow-2xs"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Python 3</span>`
+          : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 font-mono shadow-2xs"><i data-lucide="file-text" class="w-3 h-3 text-amber-600"></i> Markdown</span>`;
 
         const linesCount = (cell.source || '').split('\n').length;
-        const previewText = cell.source ? cell.source.split('\n')[0].substring(0, 70) : '(Ô trống)';
-        const maxTextareaRows = isStudioFullscreen ? 36 : 22;
+        const previewText = cell.source ? cell.source.split('\n')[0].substring(0, 80) : '(Ô trống)';
+        const maxTextareaRows = isStudioFullscreen ? 40 : 25;
+        const isMdPreview = !isCode && (cell.showPreview !== false);
+
+        let cellBodyHtml = '';
+        if (cell.isCollapsed) {
+          cellBodyHtml = `
+            <div onclick="toggleStudioCellCollapse(${idx})" class="px-4 py-2.5 bg-slate-50 hover:bg-indigo-50/40 border-t border-slate-100 cursor-pointer flex items-center justify-between text-xs text-slate-600 transition-colors">
+              <span class="font-mono text-slate-500 flex items-center gap-1.5 truncate">
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-indigo-500"></i>
+                <span class="italic text-slate-700">${escapeHtml(previewText)}</span>
+              </span>
+              <span class="text-[10px] text-indigo-600 font-semibold px-2 py-0.5 bg-indigo-50 rounded-md border border-indigo-200/60 flex-shrink-0">
+                + Mở rộng (${linesCount} dòng)
+              </span>
+            </div>
+          `;
+        } else if (isMdPreview) {
+          const renderedMd = (typeof marked !== 'undefined' && marked.parse) ? marked.parse(cell.source || '*Ô Markdown trống. Bấm nút Sửa MD để nhập nội dung.*') : escapeHtml(cell.source || '');
+          cellBodyHtml = `
+            <div class="p-4 bg-amber-50/20 border-t border-amber-100 text-slate-800 text-sm leading-relaxed prose prose-slate max-w-none">
+              ${renderedMd}
+            </div>
+          `;
+        } else {
+          const gutterLines = Array.from({length: linesCount}, (_, i) => i + 1).join('<br>');
+          const gutterBg = isDark ? 'bg-[#080b12] text-slate-500 border-r border-slate-800/80' : 'bg-slate-100/80 text-slate-400 border-r border-slate-200';
+          const editorBorder = isDark ? 'border-slate-800 bg-[#0d1117] shadow-inner focus-within:ring-2 focus-within:ring-indigo-500/30' : 'border-slate-300 bg-white shadow-xs focus-within:ring-2 focus-within:ring-indigo-500/30';
+          const editorText = isDark ? 'text-[#e6edf3] selection:bg-indigo-600/50' : 'text-slate-800 selection:bg-indigo-100';
+
+          cellBodyHtml = `
+            <div class="p-2.5 ${isDark ? 'bg-slate-950/40' : 'bg-slate-50/80'} border-t border-slate-100">
+              <div class="relative flex rounded-xl overflow-hidden border ${editorBorder} transition-all">
+                <!-- Line Number Gutter -->
+                <div id="studio-gutter-${idx}" class="select-none py-3 pl-3 pr-2.5 ${gutterBg} font-mono text-[11px] text-right leading-6 overflow-hidden pointer-events-none" style="min-width: 3.25rem;">
+                  ${gutterLines}
+                </div>
+                <!-- Textarea -->
+                <textarea 
+                  id="studio-cell-textarea-${idx}" 
+                  onscroll="syncStudioGutterScroll(${idx})"
+                  oninput="updateStudioCellSource(${idx}, this.value)" 
+                  onkeydown="handleStudioCellKeydown(event, this)"
+                  rows="${Math.max(4, Math.min(maxTextareaRows, linesCount + 1))}" 
+                  placeholder="${isCode ? '# Viết mã Python tại đây...' : '### Viết ghi chú Markdown tại đây...'}" 
+                  class="flex-1 bg-transparent ${editorText} font-mono text-xs p-3 leading-6 focus:outline-none resize-y"
+                  spellcheck="false"
+                  autocomplete="off"
+                  autocorrect="off"
+                  autocapitalize="off"
+                >${escapeHtml(cell.source || '')}</textarea>
+              </div>
+            </div>
+          `;
+        }
 
         return `
-          <div id="studio-cell-card-${idx}" class="bg-white border ${borderColor} rounded-xl shadow-2xs hover:shadow-xs transition-all overflow-hidden">
+          <div id="studio-cell-card-${idx}" class="group bg-white border ${borderColor} rounded-xl shadow-xs hover:shadow-sm transition-all overflow-hidden">
             <!-- Cell Header Toolbar -->
-            <div class="px-3.5 py-2 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between gap-2 text-xs">
+            <div class="px-3.5 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-2 text-xs">
               <div class="flex items-center gap-2 truncate">
-                <span class="font-bold text-slate-700 text-[11px] font-mono bg-slate-200/60 px-1.5 py-0.5 rounded">#${idx + 1}</span>
+                ${promptBadge}
                 ${typeBadge}
-                <span class="text-[10px] text-slate-400 font-mono truncate max-w-xs">${linesCount} dòng</span>
-                ${cell.isCollapsed ? `<span class="text-[11px] text-slate-500 italic truncate max-w-sm ml-1 font-mono">${escapeHtml(previewText)}</span>` : ''}
+                <span id="studio-cell-lines-${idx}" class="text-[10px] text-slate-400 font-mono">${linesCount} dòng</span>
               </div>
 
               <div class="flex items-center gap-1 flex-shrink-0">
+                ${!isCode ? `
+                  <button type="button" onclick="toggleStudioMarkdownPreview(${idx})" class="px-2 py-0.5 rounded text-[10px] font-semibold ${isMdPreview ? 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100' : 'text-amber-800 bg-amber-100 hover:bg-amber-200'} transition-colors" title="${isMdPreview ? 'Sửa văn bản Markdown' : 'Xem trước định dạng Markdown'}">
+                    <i data-lucide="${isMdPreview ? 'edit-3' : 'eye'}" class="w-3 h-3 inline mr-0.5"></i> ${isMdPreview ? 'Sửa MD' : 'Xem Trước'}
+                  </button>
+                ` : ''}
                 <!-- Change Type -->
                 <button type="button" onclick="updateStudioCellType(${idx}, '${isCode ? 'markdown' : 'code'}')" class="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors" title="Đổi sang ${isCode ? 'Markdown' : 'Code'}">
                   ${isCode ? 'Sang MD' : 'Sang Code'}
                 </button>
                 <!-- Copy Content -->
-                <button type="button" onclick="copyStudioCellContent(${idx})" class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer" title="Sao chép nội dung ô này">
+                <button type="button" onclick="copyStudioCellContent(${idx})" class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer transition-colors" title="Sao chép nội dung ô này">
                   <i data-lucide="copy" class="w-3.5 h-3.5"></i>
                 </button>
                 <!-- Duplicate -->
-                <button type="button" onclick="duplicateStudioCell(${idx})" class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer" title="Nhân bản ô này">
+                <button type="button" onclick="duplicateStudioCell(${idx})" class="p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer transition-colors" title="Nhân bản ô này">
                   <i data-lucide="copy-plus" class="w-3.5 h-3.5"></i>
                 </button>
                 <!-- Move Up -->
-                <button type="button" onclick="moveStudioCell(${idx}, -1)" ${idx === 0 ? 'disabled class="p-1 text-slate-300 cursor-not-allowed"' : 'class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer"'} title="Di chuyển lên trên">
+                <button type="button" onclick="moveStudioCell(${idx}, -1)" ${idx === 0 ? 'disabled class="p-1 text-slate-300 cursor-not-allowed"' : 'class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer transition-colors"'} title="Di chuyển lên trên">
                   <i data-lucide="chevron-up" class="w-3.5 h-3.5"></i>
                 </button>
                 <!-- Move Down -->
-                <button type="button" onclick="moveStudioCell(${idx}, 1)" ${idx === studioCells.length - 1 ? 'disabled class="p-1 text-slate-300 cursor-not-allowed"' : 'class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer"'} title="Di chuyển xuống dưới">
+                <button type="button" onclick="moveStudioCell(${idx}, 1)" ${idx === studioCells.length - 1 ? 'disabled class="p-1 text-slate-300 cursor-not-allowed"' : 'class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer transition-colors"'} title="Di chuyển xuống dưới">
                   <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
                 </button>
                 <!-- Toggle Collapse -->
-                <button type="button" onclick="toggleStudioCellCollapse(${idx})" class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer" title="${cell.isCollapsed ? 'Mở rộng' : 'Thu gọn'}">
+                <button type="button" onclick="toggleStudioCellCollapse(${idx})" class="p-1 text-slate-600 hover:text-indigo-600 hover:bg-slate-200 rounded cursor-pointer transition-colors" title="${cell.isCollapsed ? 'Mở rộng' : 'Thu gọn'}">
                   <i data-lucide="${cell.isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-3.5 h-3.5"></i>
                 </button>
                 <!-- Add cell below -->
-                <button type="button" onclick="addStudioCell('code', ${idx + 1})" class="p-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer" title="Thêm ô code ngay bên dưới">
+                <button type="button" onclick="addStudioCell('code', ${idx + 1})" class="p-1 text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer transition-colors" title="Thêm ô code ngay bên dưới">
                   <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
                 </button>
                 <!-- Delete -->
-                <button type="button" onclick="deleteStudioCell(${idx})" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer" title="Xóa ô này">
+                <button type="button" onclick="deleteStudioCell(${idx})" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer transition-colors" title="Xóa ô này">
                   <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                 </button>
               </div>
             </div>
 
-            <!-- Cell Body (Textarea) -->
-            <div class="${cell.isCollapsed ? 'hidden' : 'p-3 bg-slate-50/30'}">
-              <textarea 
-                id="studio-cell-textarea-${idx}" 
-                oninput="updateStudioCellSource(${idx}, this.value)" 
-                onkeydown="handleStudioCellKeydown(event, this)"
-                rows="${Math.max(3, Math.min(maxTextareaRows, linesCount + 1))}" 
-                placeholder="${isCode ? '# Viết mã Python tại đây...' : '### Viết ghi chú Markdown tại đây...'}" 
-                class="w-full text-xs font-mono p-3.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 leading-relaxed shadow-2xs resize-y transition-colors"
-              >${escapeHtml(cell.source || '')}</textarea>
-            </div>
+            <!-- Cell Body -->
+            ${cellBodyHtml}
           </div>
         `;
       }).join('');
@@ -5803,13 +5907,24 @@
       if (index >= 0 && index < studioCells.length) {
         studioCells[index].source = val;
         syncStudioToSourceCode();
-        // Update line count badge in cell header without full re-render
-        const card = document.getElementById(`studio-cell-card-${index}`);
-        if (card) {
-          const lines = (val || '').split('\n').length;
-          const badge = card.querySelector('.text-\\[10px\\]');
-          if (badge) badge.innerText = `${lines} dòng`;
+        const lines = (val || '').split('\n').length;
+
+        // Synchronize line numbers gutter
+        const gutter = document.getElementById(`studio-gutter-${index}`);
+        if (gutter) {
+          gutter.innerHTML = Array.from({length: lines}, (_, i) => i + 1).join('<br>');
         }
+
+        // Auto-adjust textarea rows
+        const ta = document.getElementById(`studio-cell-textarea-${index}`);
+        if (ta) {
+          const maxR = isStudioFullscreen ? 40 : 25;
+          ta.rows = Math.max(4, Math.min(maxR, lines + 1));
+        }
+
+        // Update line count badge in cell header
+        const badge = document.getElementById(`studio-cell-lines-${index}`);
+        if (badge) badge.innerText = `${lines} dòng`;
       }
     }
 
